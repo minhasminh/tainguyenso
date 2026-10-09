@@ -65,14 +65,16 @@ export function AppRouter() {
     }
   }, [cleanPath, loading, user]);
 
-  // Public Deployment Check route (Accessible directly without requiring login for DevOps verification)
+  // Deployment Check route (Chỉ hiển thị cho tài khoản Quản trị khi đã đăng nhập)
   if (cleanPath === '/deployment-check' || cleanPath === '/deployment-check.html') {
     if (user) {
       return (
         <ProtectedRoute>
-          <MainLayout currentPath={currentPath}>
-            <DeploymentCheckPage />
-          </MainLayout>
+          <RoleGuard allowedRoles={['ADMIN']}>
+            <MainLayout currentPath={currentPath}>
+              <DeploymentCheckPage />
+            </MainLayout>
+          </RoleGuard>
         </ProtectedRoute>
       );
     }
@@ -145,10 +147,18 @@ function renderProtectedPage(cleanPath: string) {
       return <SettingsPage />;
 
     case '/settings/deployment':
-      return <DeploymentGuidePage />;
+      return (
+        <RoleGuard allowedRoles={['ADMIN']}>
+          <DeploymentGuidePage />
+        </RoleGuard>
+      );
 
     case '/deployment-check':
-      return <DeploymentCheckPage />;
+      return (
+        <RoleGuard allowedRoles={['ADMIN']}>
+          <DeploymentCheckPage />
+        </RoleGuard>
+      );
 
     // --- MODULE TÀI NGUYÊN SỐ ---
     case '/resources':

@@ -107,13 +107,17 @@ export function Sidebar({
       icon: User,
       active: isCurrentActive('/profile'),
     },
-    {
-      title: 'Kiểm tra Deploy',
-      href: '#/deployment-check',
-      icon: Server,
-      active: isCurrentActive('/deployment-check'),
-      badge: 'Health',
-    },
+    ...(isAdmin
+      ? [
+          {
+            title: 'Kiểm tra Deploy',
+            href: '#/deployment-check',
+            icon: Server,
+            active: isCurrentActive('/deployment-check'),
+            badge: 'Health',
+          },
+        ]
+      : []),
     {
       title: 'Cài đặt',
       href: '#/settings',

@@ -24,9 +24,9 @@ import {
 } from '../lib/supabase';
 
 export function SettingsPage() {
-  const { profile } = useAuth();
+  const { profile, role } = useAuth();
   const toast = useToast();
-  const isAdmin = profile?.role === 'ADMIN' || profile?.role === 'SCHOOL_ADMIN';
+  const isAdmin = (role || profile?.role) === 'ADMIN';
 
   const [testingDb, setTestingDb] = useState(false);
   const [dbResult, setDbResult] = useState<{ success: boolean; message: string; details?: string } | null>(null);
@@ -64,53 +64,55 @@ export function SettingsPage() {
         </p>
       </div>
 
-      {/* Deployment & Production Server Card (Section XII & VI) */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-          <div>
-            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
-              <Server className="w-4 h-4 text-blue-600" />
-              Triển khai Hosting & Kiểm tra Sức khỏe Hệ thống (Deployment)
-            </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Hướng dẫn cấu hình cPanel/Apache, Document Root, chống lỗi F5 404 và kiểm tra toàn diện
-            </p>
+      {/* Deployment & Production Server Card (Section XII & VI) - Chỉ hiển thị cho tài khoản Quản trị */}
+      {isAdmin && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div>
+              <h2 className="text-sm font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                <Server className="w-4 h-4 text-blue-600" />
+                Triển khai Hosting & Kiểm tra Sức khỏe Hệ thống (Deployment)
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Hướng dẫn cấu hình cPanel/Apache, Document Root, chống lỗi F5 404 và kiểm tra toàn diện
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <a
+              href="#/deployment-check"
+              className="p-4 rounded-xl border border-blue-200 bg-blue-50/50 hover:bg-blue-50 transition flex items-center justify-between group"
+            >
+              <div className="space-y-1">
+                <div className="font-bold text-xs text-blue-900 flex items-center gap-2">
+                  DEPLOYMENT HEALTH CHECK
+                  <span className="px-2 py-0.5 rounded-full text-[10px] bg-blue-200 text-blue-800 font-bold">10 Tiêu chí</span>
+                </div>
+                <p className="text-[11px] text-blue-700">
+                  Kiểm tra trực tiếp HTTPS, URL, Supabase, Authentication, Webhook và SPA Routing.
+                </p>
+              </div>
+              <ChevronRight className="w-5 h-5 text-blue-500 group-hover:translate-x-1 transition shrink-0" />
+            </a>
+
+            <a
+              href="#/settings/deployment"
+              className="p-4 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100/70 transition flex items-center justify-between group"
+            >
+              <div className="space-y-1">
+                <div className="font-bold text-xs text-slate-900 flex items-center gap-2">
+                  HƯỚNG DẪN DEPLOY 5 BƯỚC
+                </div>
+                <p className="text-[11px] text-slate-600">
+                  Quy trình build npm, kiểm tra file dist/.htaccess và cấu hình Document Root cPanel.
+                </p>
+              </div>
+              <ChevronRight className="w-5 h-5 text-slate-400 group-hover:translate-x-1 transition shrink-0" />
+            </a>
           </div>
         </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <a
-            href="#/deployment-check"
-            className="p-4 rounded-xl border border-blue-200 bg-blue-50/50 hover:bg-blue-50 transition flex items-center justify-between group"
-          >
-            <div className="space-y-1">
-              <div className="font-bold text-xs text-blue-900 flex items-center gap-2">
-                DEPLOYMENT HEALTH CHECK
-                <span className="px-2 py-0.5 rounded-full text-[10px] bg-blue-200 text-blue-800 font-bold">10 Tiêu chí</span>
-              </div>
-              <p className="text-[11px] text-blue-700">
-                Kiểm tra trực tiếp HTTPS, URL, Supabase, Authentication, Webhook và SPA Routing.
-              </p>
-            </div>
-            <ChevronRight className="w-5 h-5 text-blue-500 group-hover:translate-x-1 transition shrink-0" />
-          </a>
-
-          <a
-            href="#/settings/deployment"
-            className="p-4 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100/70 transition flex items-center justify-between group"
-          >
-            <div className="space-y-1">
-              <div className="font-bold text-xs text-slate-900 flex items-center gap-2">
-                HƯỚNG DẪN DEPLOY 5 BƯỚC
-              </div>
-              <p className="text-[11px] text-slate-600">
-                Quy trình build npm, kiểm tra file dist/.htaccess và cấu hình Document Root cPanel.
-              </p>
-            </div>
-            <ChevronRight className="w-5 h-5 text-slate-400 group-hover:translate-x-1 transition shrink-0" />
-          </a>
-        </div>
-      </div>
+      )}
 
       {/* Supabase Database Connection Card */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">

@@ -39,6 +39,19 @@ export class ErrorBoundary extends Component<Props, State> {
     window.location.reload();
   };
 
+  private isUserAdmin = () => {
+    try {
+      const raw = localStorage.getItem('school_resource_auth_session');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed.email?.includes('admin')) return true;
+      }
+      const dbRaw = localStorage.getItem('school_resource_mock_db');
+      if (dbRaw && dbRaw.includes('"role":"ADMIN"')) return true;
+    } catch {}
+    return false;
+  };
+
   private toggleDetails = () => {
     this.setState((prev) => ({ showDetails: !prev.showDetails }));
   };
@@ -79,14 +92,27 @@ export class ErrorBoundary extends Component<Props, State> {
                 Tải lại trang
               </button>
 
-              <button
-                type="button"
-                onClick={this.handleGoHealthCheck}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition cursor-pointer border border-slate-200"
-              >
-                <Server className="w-4 h-4" />
-                Kiểm tra Deploy
-              </button>
+              {this.isUserAdmin() ? (
+                <button
+                  type="button"
+                  onClick={this.handleGoHealthCheck}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition cursor-pointer border border-slate-200"
+                >
+                  <Server className="w-4 h-4" />
+                  Kiểm tra Deploy
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.location.hash = '#/';
+                    window.location.reload();
+                  }}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition cursor-pointer border border-slate-200"
+                >
+                  Về trang chủ
+                </button>
+              )}
             </div>
 
             {/* Technical details toggle */}
