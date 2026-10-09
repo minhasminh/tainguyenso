@@ -7,17 +7,20 @@
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
+export const DEFAULT_SUPABASE_URL = 'https://isxwcdhagwozmvavlbts.supabase.co';
+export const DEFAULT_SUPABASE_ANON_KEY = 'sb_publishable_ag2fAQNwcqZYOCi9PKV8Jg_NuiBs7rD';
+
 // Environment variables
 // Note: Vite performs static AST replacement on `import.meta.env.VITE_*` expressions at build time.
 const envUrl = (
   (typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_SUPABASE_URL : '') ||
   (typeof process !== 'undefined' && process.env ? process.env.VITE_SUPABASE_URL : '') ||
-  ''
+  DEFAULT_SUPABASE_URL
 ).trim();
 const envKey = (
   (typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_SUPABASE_ANON_KEY : '') ||
   (typeof process !== 'undefined' && process.env ? process.env.VITE_SUPABASE_ANON_KEY : '') ||
-  ''
+  DEFAULT_SUPABASE_ANON_KEY
 ).trim();
 
 // Local storage override keys (for dev/testing fallback)
@@ -196,8 +199,11 @@ export function getSupabaseCredentials(): {
   const localUrl = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY_URL) : null;
   const localKey = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY_KEY) : null;
 
-  const url = (envUrl || localUrl || '').trim();
-  const anonKey = (envKey || localKey || '').trim();
+  const urlCandidate = [localUrl, envUrl, DEFAULT_SUPABASE_URL].find(isValidSupabaseUrl) || DEFAULT_SUPABASE_URL;
+  const keyCandidate = [localKey, envKey, DEFAULT_SUPABASE_ANON_KEY].find(isValidSupabaseKey) || DEFAULT_SUPABASE_ANON_KEY;
+
+  const url = urlCandidate.trim();
+  const anonKey = keyCandidate.trim();
   const isConfigured = isValidSupabaseUrl(url) && isValidSupabaseKey(anonKey);
 
   // Masked key an toàn cho việc hiển thị log/chẩn đoán

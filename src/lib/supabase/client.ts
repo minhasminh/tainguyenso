@@ -1,7 +1,12 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { isValidSupabaseUrl, isValidSupabaseKey } from '../supabase';
+import {
+  isValidSupabaseUrl,
+  isValidSupabaseKey,
+  DEFAULT_SUPABASE_URL,
+  DEFAULT_SUPABASE_ANON_KEY,
+} from '../supabase';
 
-export { isValidSupabaseUrl, isValidSupabaseKey };
+export { isValidSupabaseUrl, isValidSupabaseKey, DEFAULT_SUPABASE_URL, DEFAULT_SUPABASE_ANON_KEY };
 
 const STORAGE_KEY_URL = 'app_supabase_url';
 const STORAGE_KEY_KEY = 'app_supabase_anon_key';
@@ -15,20 +20,20 @@ export function getSupabaseCredentials(): { url: string; anonKey: string; isLive
   const envUrl = (
     (typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_SUPABASE_URL : '') ||
     (typeof process !== 'undefined' && process.env ? process.env.VITE_SUPABASE_URL : '') ||
-    ''
+    DEFAULT_SUPABASE_URL
   ).trim();
   const envKey = (
     (typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_SUPABASE_ANON_KEY : '') ||
     (typeof process !== 'undefined' && process.env ? process.env.VITE_SUPABASE_ANON_KEY : '') ||
-    ''
+    DEFAULT_SUPABASE_ANON_KEY
   ).trim();
 
   const storedUrl = typeof window !== 'undefined' ? (localStorage.getItem(STORAGE_KEY_URL) || '').trim() : '';
   const storedKey = typeof window !== 'undefined' ? (localStorage.getItem(STORAGE_KEY_KEY) || '').trim() : '';
 
-  // Ưu tiên: 1. Biến môi trường Vite (build time) -> 2. Cấu hình máy chủ -> 3. Cấu hình local storage tùy chỉnh
-  const urlCandidate = [envUrl, cachedServerUrl, storedUrl].find(isValidSupabaseUrl) || '';
-  const keyCandidate = [envKey, cachedServerKey, storedKey].find(isValidSupabaseKey) || '';
+  // Ưu tiên: 1. Biến môi trường Vite (build time) -> 2. Cấu hình máy chủ -> 3. Cấu hình local storage tùy chỉnh -> 4. Giá trị mặc định
+  const urlCandidate = [envUrl, cachedServerUrl, storedUrl, DEFAULT_SUPABASE_URL].find(isValidSupabaseUrl) || DEFAULT_SUPABASE_URL;
+  const keyCandidate = [envKey, cachedServerKey, storedKey, DEFAULT_SUPABASE_ANON_KEY].find(isValidSupabaseKey) || DEFAULT_SUPABASE_ANON_KEY;
 
   const isLiveConfigured = isValidSupabaseUrl(urlCandidate) && isValidSupabaseKey(keyCandidate);
 
