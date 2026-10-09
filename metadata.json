@@ -1,0 +1,6 @@
+{
+  "name": "Quản lý Tài nguyên số Giáo viên",
+  "description": "Nền tảng Quản lý Tài nguyên số Giáo viên - Supabase Auth, PostgreSQL, RBAC & RLS. Bảo toàn cấu trúc chuẩn Tổ chuyên môn, Môn học, Khối lớp, Loại học liệu.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

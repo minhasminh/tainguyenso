@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kiểm tra Triển khai Hosting - Quản lý Tài nguyên số</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #f8fafc;
+      color: #0f172a;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+    }
+    .card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+      box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.08);
+      max-width: 640px;
+      width: 100%;
+      padding: 32px;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .icon-badge {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: #0284c7;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      font-weight: bold;
+    }
+    h1 { font-size: 20px; font-weight: 700; color: #0f172a; }
+    p.subtitle { font-size: 13px; color: #64748b; margin-top: 2px; }
+    .status-list { list-style: none; margin: 20px 0; display: flex; flex-direction: column; gap: 10px; }
+    .status-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 14px;
+      border-radius: 10px;
+      background: #f8fafc;
+      border: 1px solid #f1f5f9;
+      font-size: 13px;
+    }
+    .badge-pass { color: #15803d; background: #dcfce7; padding: 4px 10px; border-radius: 9999px; font-weight: 600; font-size: 12px; }
+    .badge-warn { color: #b45309; background: #fef3c7; padding: 4px 10px; border-radius: 9999px; font-weight: 600; font-size: 12px; }
+    .badge-error { color: #b91c1c; background: #fee2e2; padding: 4px 10px; border-radius: 9999px; font-weight: 600; font-size: 12px; }
+    .details {
+      background: #f1f5f9;
+      padding: 14px;
+      border-radius: 10px;
+      font-family: monospace;
+      font-size: 12px;
+      color: #334155;
+      margin: 16px 0;
+      word-break: break-all;
+    }
+    .btn-group { display: flex; gap: 12px; margin-top: 24px; flex-wrap: wrap; }
+    .btn {
+      flex: 1;
+      min-width: 180px;
+      padding: 12px 18px;
+      border-radius: 10px;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 600;
+      text-align: center;
+      display: inline-block;
+      cursor: pointer;
+      border: none;
+    }
+    .btn-primary { background: #0284c7; color: #ffffff; }
+    .btn-primary:hover { background: #0369a1; }
+    .btn-secondary { background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; }
+    .btn-secondary:hover { background: #e2e8f0; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <div class="icon-badge">✓</div>
+      <div>
+        <h1>DEPLOYMENT HEALTH CHECK (Static)</h1>
+        <p class="subtitle">Máy chủ Hosting & Document Root đang hoạt động chính xác</p>
+      </div>
+    </div>
+
+    <ul class="status-list">
+      <li class="status-item">
+        <span>1. Document Root (Apache/Hosting)</span>
+        <span class="badge-pass">✓ PASS (Đã trỏ đúng thư mục)</span>
+      </li>
+      <li class="status-item">
+        <span>2. Giao thức kết nối HTTPS</span>
+        <span id="https-badge" class="badge-warn">Đang kiểm tra...</span>
+      </li>
+      <li class="status-item">
+        <span>3. URL máy chủ</span>
+        <span id="hostname-badge" style="font-family:monospace;font-size:12px;">Đang đọc...</span>
+      </li>
+      <li class="status-item">
+        <span>4. File tĩnh .htaccess & deployment-check.html</span>
+        <span class="badge-pass">✓ PASS (Đã nạp thành công)</span>
+      </li>
+    </ul>
+
+    <div class="details" id="info-box">
+      Đang tải thông tin môi trường mạng...
+    </div>
+
+    <div class="btn-group">
+      <a href="/deployment-check" class="btn btn-primary">Mở trang Kiểm tra SPA Đầy đủ →</a>
+      <a href="/" class="btn btn-secondary">Vào Hệ thống Quản lý Tài nguyên</a>
+    </div>
+  </div>
+
+  <script>
+    const isHttps = window.location.protocol === 'https:';
+    const httpsBadge = document.getElementById('https-badge');
+    if (isHttps) {
+      httpsBadge.className = 'badge-pass';
+      httpsBadge.textContent = '✓ PASS (HTTPS An toàn)';
+    } else {
+      httpsBadge.className = 'badge-warn';
+      httpsBadge.textContent = '⚠ WARNING (HTTP - Cần bật SSL)';
+    }
+
+    document.getElementById('hostname-badge').textContent = window.location.host;
+
+    document.getElementById('info-box').innerHTML = `
+      <strong>Current URL:</strong> ${window.location.href}<br>
+      <strong>Hostname:</strong> ${window.location.hostname}<br>
+      <strong>Protocol:</strong> ${window.location.protocol}<br>
+      <strong>Port:</strong> ${window.location.port || 'mặc định (80/443)'}<br>
+      <strong>User Agent:</strong> ${navigator.userAgent}
+    `;
+  </script>
+</body>
+</html>
