@@ -1,10 +1,11 @@
 import dotenv from 'dotenv';
 dotenv.config({ override: true });
-import express, { Request, Response } from 'express';
+import express from 'express';
+import type { Request, Response } from 'express';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -90,8 +91,8 @@ let SUPABASE_URL = [
   storedSupabaseUrl,
   process.env.VITE_SUPABASE_URL,
   process.env.SUPABASE_URL,
-  'https://isxwcdhagwozmvavlbts.supabase.co',
-].find(isValidSupabaseUrl) || 'https://isxwcdhagwozmvavlbts.supabase.co';
+  'https://your-project-ref.supabase.co',
+].find(isValidSupabaseUrl) || 'https://your-project-ref.supabase.co';
 
 let SUPABASE_KEY = [
   storedSupabaseKey,

@@ -74,9 +74,15 @@ export default defineConfig(({ mode }) => {
   const fileEnv = readLocalEnvFile();
   const loaded = loadEnv(mode, process.cwd(), 'VITE_');
 
-  // Priority: .env file > loaded env > process.env
-  const supabaseUrl = fileEnv.VITE_SUPABASE_URL || loaded.VITE_SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
-  const supabaseAnonKey = fileEnv.VITE_SUPABASE_ANON_KEY || loaded.VITE_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
+  const defaultUrl = 'https://your-project-ref.supabase.co';
+  const defaultAnonKey = 'sb_publishable_ag2fAQNwcqZYOCi9PKV8Jg_NuiBs7rD';
+
+  // Priority: .env file > loaded env > process.env > default values
+  const rawUrl = fileEnv.VITE_SUPABASE_URL || loaded.VITE_SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
+  const supabaseUrl = (rawUrl && !rawUrl.includes('google.com') && rawUrl.startsWith('https://')) ? rawUrl : defaultUrl;
+
+  const rawKey = fileEnv.VITE_SUPABASE_ANON_KEY || loaded.VITE_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
+  const supabaseAnonKey = (rawKey && rawKey.length > 20 && !rawKey.includes('your-anon-key')) ? rawKey : defaultAnonKey;
 
   return {
     plugins: [react(), tailwindcss(), deploymentVerificationPlugin()],

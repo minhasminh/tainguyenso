@@ -7,7 +7,7 @@
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-export const DEFAULT_SUPABASE_URL = 'https://isxwcdhagwozmvavlbts.supabase.co';
+export const DEFAULT_SUPABASE_URL = 'https://your-project-ref.supabase.co';
 export const DEFAULT_SUPABASE_ANON_KEY = 'sb_publishable_ag2fAQNwcqZYOCi9PKV8Jg_NuiBs7rD';
 
 // Environment variables
