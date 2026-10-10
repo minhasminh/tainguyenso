@@ -91,8 +91,8 @@ let SUPABASE_URL = [
   storedSupabaseUrl,
   process.env.VITE_SUPABASE_URL,
   process.env.SUPABASE_URL,
-  'https://your-project-ref.supabase.co',
-].find(isValidSupabaseUrl) || 'https://your-project-ref.supabase.co';
+  'https://isxwcdhagwozmvavlbts.supabase.co',
+].find(isValidSupabaseUrl) || 'https://isxwcdhagwozmvavlbts.supabase.co';
 
 let SUPABASE_KEY = [
   storedSupabaseKey,

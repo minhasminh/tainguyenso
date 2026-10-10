@@ -115,7 +115,7 @@ export interface ResourceType {
 
 export interface Resource {
   id: string;
-  public_token?: string; // QR Code public token: unique, unguessable, indexed
+  public_token?: string | null; // QR Code public token: unique, unguessable, indexed
   title: string;
   description: string | null;
   owner_id: string;

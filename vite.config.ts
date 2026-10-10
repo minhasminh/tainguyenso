@@ -44,27 +44,35 @@ function deploymentVerificationPlugin() {
 
 // Helper to read local .env file directly so file values override container-level process.env
 function readLocalEnvFile(): Record<string, string> {
-  const envPath = path.resolve(__dirname, '.env');
+  const candidatePaths = [
+    path.resolve(__dirname, '.env'),
+    path.resolve(__dirname, '.env.production'),
+    path.resolve(__dirname, '.env.example'),
+  ];
   const result: Record<string, string> = {};
-  if (fs.existsSync(envPath)) {
-    try {
-      const content = fs.readFileSync(envPath, 'utf-8');
-      const lines = content.split('\n');
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed || trimmed.startsWith('#')) continue;
-        const equalIdx = trimmed.indexOf('=');
-        if (equalIdx > 0) {
-          const key = trimmed.slice(0, equalIdx).trim();
-          let val = trimmed.slice(equalIdx + 1).trim();
-          if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
-            val = val.slice(1, -1);
+  for (const envPath of candidatePaths) {
+    if (fs.existsSync(envPath)) {
+      try {
+        const content = fs.readFileSync(envPath, 'utf-8');
+        const lines = content.split('\n');
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith('#')) continue;
+          const equalIdx = trimmed.indexOf('=');
+          if (equalIdx > 0) {
+            const key = trimmed.slice(0, equalIdx).trim();
+            if (!result[key]) {
+              let val = trimmed.slice(equalIdx + 1).trim();
+              if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+                val = val.slice(1, -1);
+              }
+              result[key] = val;
+            }
           }
-          result[key] = val;
         }
+      } catch {
+        // ignore
       }
-    } catch {
-      // ignore
     }
   }
   return result;
@@ -74,12 +82,12 @@ export default defineConfig(({ mode }) => {
   const fileEnv = readLocalEnvFile();
   const loaded = loadEnv(mode, process.cwd(), 'VITE_');
 
-  const defaultUrl = 'https://your-project-ref.supabase.co';
+  const defaultUrl = 'https://isxwcdhagwozmvavlbts.supabase.co';
   const defaultAnonKey = 'sb_publishable_ag2fAQNwcqZYOCi9PKV8Jg_NuiBs7rD';
 
   // Priority: .env file > loaded env > process.env > default values
   const rawUrl = fileEnv.VITE_SUPABASE_URL || loaded.VITE_SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
-  const supabaseUrl = (rawUrl && !rawUrl.includes('google.com') && rawUrl.startsWith('https://')) ? rawUrl : defaultUrl;
+  const supabaseUrl = (rawUrl && !rawUrl.includes('google.com') && !rawUrl.includes('your-project') && rawUrl.startsWith('https://')) ? rawUrl : defaultUrl;
 
   const rawKey = fileEnv.VITE_SUPABASE_ANON_KEY || loaded.VITE_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
   const supabaseAnonKey = (rawKey && rawKey.length > 20 && !rawKey.includes('your-anon-key')) ? rawKey : defaultAnonKey;

@@ -31,6 +31,7 @@ import {
   MASTER_GRADES,
   MASTER_RESOURCE_TYPES,
 } from '../../constants/masterData';
+import { SEED_RESOURCES } from '../../constants/seedResources';
 
 // Master curriculum datasets (Locked and aligned with Supabase database)
 export const INITIAL_DEPARTMENTS: Department[] = MASTER_DEPARTMENTS;
@@ -203,8 +204,8 @@ export const INITIAL_ACADEMIC_YEARS: AcademicYear[] = [
   },
 ];
 
-// Initial resources (Cleaned for production)
-export const INITIAL_RESOURCES: Resource[] = [];
+// Initial resources (Pre-seeded with production master data)
+export const INITIAL_RESOURCES: Resource[] = [...SEED_RESOURCES];
 
 // Initial approval history (Cleaned for production)
 export const INITIAL_APPROVAL_HISTORY: ApprovalHistory[] = [];
@@ -381,6 +382,11 @@ export class MockDatabaseStore {
             !r.id.startsWith('rc') &&
             !r.id.startsWith('rd')
         );
+        for (const seedRes of INITIAL_RESOURCES) {
+          if (!this.resources.some((r) => r.id === seedRes.id)) {
+            this.resources.push(seedRes);
+          }
+        }
         const loadedAY: AcademicYear[] = parsed.academicYears || [];
         for (const initAY of INITIAL_ACADEMIC_YEARS) {
           if (!loadedAY.some((a) => a.id === initAY.id || a.name.toLowerCase() === initAY.name.toLowerCase())) {
