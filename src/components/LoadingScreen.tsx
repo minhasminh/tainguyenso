@@ -9,7 +9,7 @@ export function LoadingScreen({ message = 'Đang tải dữ liệu hệ thống.
           <School className="w-8 h-8" />
         </div>
         <h2 className="text-base font-semibold text-slate-800 mb-1">Quản lý Tài nguyên số Giáo viên</h2>
-        <p className="text-xs text-slate-500 mb-6">Trường Tiểu học và Trung học Cơ sở</p>
+        <p className="text-xs text-slate-500 mb-6">Trường Tiểu học và Trung học cơ sở Nguyễn Đình Anh</p>
         <div className="flex items-center gap-2 text-indigo-600 text-sm font-medium">
           <Loader2 className="w-4 h-4 animate-spin" />
           <span>{message}</span>

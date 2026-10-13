@@ -65,23 +65,16 @@ export function AppRouter() {
     }
   }, [cleanPath, loading, user]);
 
-  // Deployment Check route (Chỉ hiển thị cho tài khoản Quản trị khi đã đăng nhập)
+  // Deployment Check route (Chỉ hiển thị cho tài khoản Quản trị)
   if (cleanPath === '/deployment-check' || cleanPath === '/deployment-check.html') {
-    if (user) {
-      return (
-        <ProtectedRoute>
-          <RoleGuard allowedRoles={['ADMIN']}>
-            <MainLayout currentPath={currentPath}>
-              <DeploymentCheckPage />
-            </MainLayout>
-          </RoleGuard>
-        </ProtectedRoute>
-      );
-    }
     return (
-      <div className="min-h-screen bg-slate-50 p-4 sm:p-8">
-        <DeploymentCheckPage />
-      </div>
+      <ProtectedRoute>
+        <RoleGuard allowedRoles={['ADMIN']}>
+          <MainLayout currentPath={currentPath}>
+            <DeploymentCheckPage />
+          </MainLayout>
+        </RoleGuard>
+      </ProtectedRoute>
     );
   }
 

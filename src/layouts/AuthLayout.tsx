@@ -19,7 +19,7 @@ export function AuthLayout({ children, title, subtitle, maxWidth = 'sm:max-w-md'
           QUẢN LÝ TÀI NGUYÊN SỐ GIÁO VIÊN
         </h1>
         <p className="mt-1.5 text-xs text-slate-600 font-medium">
-          Trường Tiểu học và Trung học Cơ sở &bull; Nền tảng Phân quyền RBAC & RLS
+          Trường Tiểu học và Trung học cơ sở Nguyễn Đình Anh
         </p>
       </div>
 
