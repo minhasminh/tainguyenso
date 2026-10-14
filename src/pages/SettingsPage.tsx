@@ -60,7 +60,9 @@ export function SettingsPage() {
           CÀI ĐẶT HỆ THỐNG
         </h1>
         <p className="text-xs sm:text-sm text-slate-500 mt-1">
-          Cấu hình môi trường máy chủ, kết nối cơ sở dữ liệu Supabase và danh mục dùng chung
+          {isAdmin
+            ? 'Cấu hình môi trường máy chủ, kết nối cơ sở dữ liệu Supabase và danh mục dùng chung'
+            : 'Quản lý thiết lập hệ thống và danh mục chuẩn hóa dùng chung toàn trường'}
         </p>
       </div>
 
@@ -114,67 +116,69 @@ export function SettingsPage() {
         </div>
       )}
 
-      {/* Supabase Database Connection Card */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
-          <div>
-            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
-              <Database className="w-4 h-4 text-emerald-600" />
-              Cơ sở Dữ liệu Supabase Cloud
-            </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Quản lý kết nối PostgreSQL đám mây, RLS và chính sách phân quyền RBAC
-            </p>
+      {/* Supabase Database Connection Card - Chỉ hiển thị cho Quản trị viên (ADMIN), ẩn đối với quyền Hiệu trưởng (SCHOOL_ADMIN) và các vai trò khác */}
+      {isAdmin && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+            <div>
+              <h2 className="text-sm font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                <Database className="w-4 h-4 text-emerald-600" />
+                Cơ sở Dữ liệu Supabase Cloud
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Quản lý kết nối PostgreSQL đám mây, RLS và chính sách phân quyền RBAC
+              </p>
+            </div>
+
+            <button
+              onClick={handleTestDatabase}
+              disabled={testingDb}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-xs cursor-pointer disabled:opacity-50 transition"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${testingDb ? 'animate-spin' : ''}`} />
+              {testingDb ? 'Đang kiểm tra...' : 'Kiểm tra kết nối'}
+            </button>
           </div>
 
-          <button
-            onClick={handleTestDatabase}
-            disabled={testingDb}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-xs cursor-pointer disabled:opacity-50 transition"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${testingDb ? 'animate-spin' : ''}`} />
-            {testingDb ? 'Đang kiểm tra...' : 'Kiểm tra kết nối'}
-          </button>
+          {/* Credentials Display (Không làm lộ full secret key) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+              <span className="text-slate-400 text-[11px]">VITE_SUPABASE_URL:</span>
+              <div className="font-mono text-slate-800 truncate font-semibold">
+                {creds.url || 'Chưa cấu hình trong .env'}
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+              <span className="text-slate-400 text-[11px]">VITE_SUPABASE_ANON_KEY (Được bảo vệ):</span>
+              <div className="font-mono text-slate-800 truncate font-semibold">
+                {creds.maskedKey}
+              </div>
+            </div>
+          </div>
+
+          {/* Test Result Message */}
+          {dbResult && (
+            <div
+              className={`p-4 rounded-xl border text-xs space-y-1 ${
+                dbResult.success
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                  : 'bg-rose-50 border-rose-200 text-rose-900'
+              }`}
+            >
+              <div className="font-bold flex items-center gap-2">
+                {dbResult.success ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                ) : (
+                  <AlertTriangle className="w-4 h-4 text-rose-600" />
+                )}
+                {dbResult.message}
+              </div>
+              {dbResult.details && <div className="text-[11px] opacity-90">{dbResult.details}</div>}
+            </div>
+          )}
         </div>
-
-        {/* Credentials Display (Không làm lộ full secret key) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
-            <span className="text-slate-400 text-[11px]">VITE_SUPABASE_URL:</span>
-            <div className="font-mono text-slate-800 truncate font-semibold">
-              {creds.url || 'Chưa cấu hình trong .env'}
-            </div>
-          </div>
-
-          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
-            <span className="text-slate-400 text-[11px]">VITE_SUPABASE_ANON_KEY (Được bảo vệ):</span>
-            <div className="font-mono text-slate-800 truncate font-semibold">
-              {creds.maskedKey}
-            </div>
-          </div>
-        </div>
-
-        {/* Test Result Message */}
-        {dbResult && (
-          <div
-            className={`p-4 rounded-xl border text-xs space-y-1 ${
-              dbResult.success
-                ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                : 'bg-rose-50 border-rose-200 text-rose-900'
-            }`}
-          >
-            <div className="font-bold flex items-center gap-2">
-              {dbResult.success ? (
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              ) : (
-                <AlertTriangle className="w-4 h-4 text-rose-600" />
-              )}
-              {dbResult.message}
-            </div>
-            {dbResult.details && <div className="text-[11px] opacity-90">{dbResult.details}</div>}
-          </div>
-        )}
-      </div>
+      )}
 
       {/* Master Data Management Quick Links (Rule 1: Bảo toàn Tổ, Môn, Khối, Loại học liệu) */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
