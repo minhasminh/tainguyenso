@@ -11,7 +11,8 @@ import {
   ResourceSortOption,
 } from '../../types';
 import { TeacherCombobox } from './TeacherCombobox';
-import { RotateCcw, Check, Bookmark, Calendar, CheckSquare, Square } from 'lucide-react';
+import { RotateCcw, Check, Bookmark, Calendar, CheckSquare, Square, Building2 } from 'lucide-react';
+import { getUserDepartmentIds } from '../../utils/formatters';
 
 interface AdvancedFilterPanelProps {
   isOpen: boolean;
@@ -70,6 +71,24 @@ export function AdvancedFilterPanel({
   const selectedTypes = filters.resource_types || (filters.resource_type && filters.resource_type !== 'all' ? [filters.resource_type] : []);
   const selectedStatuses = filters.statuses || (filters.status && filters.status !== 'all' ? [filters.status as ResourceStatus] : []);
 
+  // Role-aware department filtering
+  const userDepts = getUserDepartmentIds(currentUser);
+  const isGlobalApprover = currentUser?.role === 'ADMIN' || currentUser?.role === 'SCHOOL_ADMIN';
+  const isVP = currentUser?.role === 'VICE_PRINCIPAL';
+
+  // Allowed departments for current user
+  const selectableDepartments = React.useMemo(() => {
+    if (isGlobalApprover) return departments;
+    if (isVP) {
+      if (userDepts.length === 0) return departments;
+      return departments.filter((d) => userDepts.includes(d.id));
+    }
+    if (userDepts.length > 0) {
+      return departments.filter((d) => userDepts.includes(d.id));
+    }
+    return departments;
+  }, [departments, isGlobalApprover, isVP, userDepts]);
+
   // Filter subjects based on selected department if any
   const filteredSubjects = filters.department_id && filters.department_id !== 'all'
     ? subjects.filter((s) => s.department_id === filters.department_id)
@@ -100,9 +119,14 @@ export function AdvancedFilterPanel({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-4">
         {/* 1. Tổ / Bộ môn */}
         <div>
-          <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-            Tổ / Bộ môn
-          </label>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="block text-xs font-semibold text-slate-700">
+              Tổ / Bộ môn
+            </label>
+            {!isGlobalApprover && !isVP && (
+              <span className="text-[10px] text-indigo-600 font-medium">Trong tổ của bạn</span>
+            )}
+          </div>
           <select
             value={filters.department_id || 'all'}
             onChange={(e) => {
@@ -113,12 +137,31 @@ export function AdvancedFilterPanel({
             }}
             className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:border-indigo-500 outline-none cursor-pointer"
           >
-            <option value="all">Tất cả tổ / bộ môn</option>
-            {departments.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-              </option>
-            ))}
+            {isGlobalApprover ? (
+              <>
+                <option value="all">Tất cả tổ chuyên môn (Toàn trường)</option>
+                {selectableDepartments.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+              </>
+            ) : isVP ? (
+              <>
+                <option value="all">Tất cả tổ phụ trách ({selectableDepartments.length} tổ)</option>
+                {selectableDepartments.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+              </>
+            ) : (
+              selectableDepartments.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name} (Tổ chuyên môn của bạn)
+                </option>
+              ))
+            )}
           </select>
         </div>
 

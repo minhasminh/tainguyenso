@@ -9,6 +9,7 @@ import {
   getResourceStatusInfo,
   detectResourceProvider,
   getProviderInfo,
+  getUserDepartmentIds,
 } from '../utils/formatters';
 import { ConfirmationDialog } from '../components/ConfirmationDialog';
 import { ResourceQrCard } from '../components/resources/ResourceQrCard';
@@ -121,12 +122,20 @@ export function ResourceDetailPage({ id }: ResourceDetailPageProps) {
     );
   }
 
+  const userDepts = getUserDepartmentIds(profile);
+  const isInSameDept = Boolean(resource.department_id && userDepts.includes(resource.department_id));
+
   const isOwner = resource.owner_id === profile?.id;
   const isAdmin = profile?.role === 'ADMIN';
-  const isSchoolAdmin = profile?.role === 'SCHOOL_ADMIN' || profile?.role === 'VICE_PRINCIPAL';
+  const isPrincipal = profile?.role === 'SCHOOL_ADMIN'; // Hiệu trưởng
+  const isVicePrincipal = profile?.role === 'VICE_PRINCIPAL'; // Phó hiệu trưởng
+
+  // Phó hiệu trưởng duyệt sản phẩm trong các tổ được phân công phụ trách (hoặc nếu chưa gán giới hạn thì được duyệt)
+  const canVicePrincipalApprove = isVicePrincipal && (userDepts.length === 0 || isInSameDept);
+
   const isSubjectLeader =
     (profile?.role === 'SUBJECT_LEADER' || profile?.role === 'VICE_SUBJECT_LEADER') &&
-    (profile?.department_id === resource.department_id || isAdmin);
+    (isInSameDept || isAdmin || isPrincipal);
 
   const canEdit =
     (isOwner &&
@@ -143,10 +152,10 @@ export function ResourceDetailPage({ id }: ResourceDetailPageProps) {
     isOwner && (resource.status === 'draft' || resource.status === 'revision_required');
 
   const canSubjectLeaderReview =
-    (isSubjectLeader || isAdmin || isSchoolAdmin) && resource.status === 'submitted';
+    (isSubjectLeader || isAdmin || isPrincipal || canVicePrincipalApprove) && resource.status === 'submitted';
 
   const canSchoolAdminReview =
-    (isSchoolAdmin || isAdmin) && resource.status === 'pending_school_approval';
+    (isPrincipal || isAdmin || canVicePrincipalApprove) && resource.status === 'pending_school_approval';
 
   const statusInfo = getResourceStatusInfo(resource.status);
   const provider = detectResourceProvider(resource.resource_url);

@@ -524,4 +524,23 @@ export function normalizeDepartmentName(name: string | null | undefined): string
     .trim();
 }
 
+/**
+ * Extracts all department IDs associated with a user profile.
+ * Supports both single department_id and multiple department_ids (e.g. for Phó hiệu trưởng).
+ */
+export function getUserDepartmentIds(
+  profile?: { department_id?: string | null; department_ids?: string[] } | null
+): string[] {
+  if (!profile) return [];
+  const ids = new Set<string>();
+  if (profile.department_id) ids.add(profile.department_id);
+  if (Array.isArray(profile.department_ids)) {
+    profile.department_ids.forEach((id) => {
+      if (id && typeof id === 'string') ids.add(id);
+    });
+  }
+  return Array.from(ids);
+}
+
+
 

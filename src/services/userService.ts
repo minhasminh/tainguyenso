@@ -157,6 +157,7 @@ export const userService = {
     };
     delete updatePayload.department;
     delete updatePayload.subject;
+    delete updatePayload.department_ids;
 
     if (updatePayload.department_id !== undefined) {
       updatePayload.department_id = sanitizeDepartmentId(updatePayload.department_id);
@@ -251,6 +252,7 @@ export const userService = {
       role: UserRole;
       status: UserStatus;
       department_id: string | null;
+      department_ids?: string[];
       subject_id: string | null;
       avatar_url?: string;
     },
@@ -367,6 +369,7 @@ export const userService = {
         role: data.role,
         status: data.status,
         department_id: cleanDeptId,
+        department_ids: data.department_ids,
         subject_id: cleanSubjId,
         avatar_url: data.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(data.full_name)}`,
       },

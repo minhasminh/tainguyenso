@@ -16,10 +16,11 @@ import {
   MessageSquare,
 } from 'lucide-react';
 import { resourceService } from '../services/resourceService';
-import { Resource } from '../types';
+import { departmentService } from '../services/departmentService';
+import { Resource, Department } from '../types';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../hooks/useToast';
-import { getResourceStatusInfo, formatVietnamDateTime } from '../utils/formatters';
+import { getResourceStatusInfo, formatVietnamDateTime, getUserDepartmentIds } from '../utils/formatters';
 import { ApprovalActionDialog, WorkflowActionType } from '../components/resources/ApprovalActionDialog';
 
 export function ApprovalPage() {
@@ -28,6 +29,7 @@ export function ApprovalPage() {
 
   const [activeTab, setActiveTab] = useState<'pending_leader' | 'pending_school' | 'revision' | 'approved'>('pending_leader');
   const [resources, setResources] = useState<Resource[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDepartment, setSelectedDepartment] = useState<string>('all');
@@ -40,8 +42,12 @@ export function ApprovalPage() {
   const fetchResources = async () => {
     setLoading(true);
     try {
-      const res = await resourceService.getResources(profile, {});
+      const [res, deptList] = await Promise.all([
+        resourceService.getResources(profile, {}),
+        departmentService.getDepartments(profile).catch(() => []),
+      ]);
       setResources(res.data);
+      setDepartments(deptList);
     } catch (err: any) {
       toast.error('Không thể tải danh sách tài nguyên phê duyệt: ' + err.message);
     } finally {
@@ -53,7 +59,14 @@ export function ApprovalPage() {
     fetchResources();
   }, [profile]);
 
-  // Filter based on activeTab
+  const userDepts = getUserDepartmentIds(profile);
+  const isGlobalApprover = profile?.role === 'ADMIN' || profile?.role === 'SCHOOL_ADMIN';
+  const isVP = profile?.role === 'VICE_PRINCIPAL';
+
+  // Phó hiệu trưởng: danh sách các tổ được phân công phụ trách
+  const vpDepartments = departments.filter((d) => userDepts.includes(d.id));
+
+  // Filter based on activeTab and department
   const filteredList = resources.filter((item) => {
     if (activeTab === 'pending_leader' && item.status !== 'submitted') return false;
     if (activeTab === 'pending_school' && item.status !== 'pending_school_approval') return false;
@@ -109,8 +122,25 @@ export function ApprovalPage() {
     }
   };
 
-  const isLeader = profile?.role === 'SUBJECT_LEADER' || profile?.role === 'VICE_SUBJECT_LEADER' || profile?.role === 'ADMIN';
-  const isSchoolAdmin = profile?.role === 'ADMIN' || profile?.role === 'SCHOOL_ADMIN' || profile?.role === 'VICE_PRINCIPAL';
+  const canLeaderReview = (res: Resource) => {
+    if (isGlobalApprover) return true;
+    if (isVP) {
+      return userDepts.length === 0 || (res.department_id && userDepts.includes(res.department_id));
+    }
+    if (profile?.role === 'SUBJECT_LEADER' || profile?.role === 'VICE_SUBJECT_LEADER') {
+      return userDepts.length === 0 || (res.department_id && userDepts.includes(res.department_id));
+    }
+    return false;
+  };
+
+  const canSchoolReview = (res: Resource) => {
+    if (isGlobalApprover) return true; // Hiệu trưởng có thể duyệt tài nguyên của bất kỳ tổ nào
+    if (isVP) {
+      // Phó hiệu trưởng có thể ở trong nhiều tổ để duyệt sản phẩm
+      return userDepts.length === 0 || (res.department_id && userDepts.includes(res.department_id));
+    }
+    return false;
+  };
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 font-sans pb-12">
@@ -209,6 +239,40 @@ export function ApprovalPage() {
             className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
+
+        {/* Bộ lọc Tổ chuyên môn (Hiệu trưởng xem mọi tổ, Phó hiệu trưởng chọn các tổ phụ trách) */}
+        <div className="w-full sm:w-auto flex items-center gap-2">
+          <Building2 className="w-4 h-4 text-slate-400 shrink-0 hidden sm:block" />
+          <select
+            value={selectedDepartment}
+            onChange={(e) => setSelectedDepartment(e.target.value)}
+            className="w-full sm:w-auto px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700 cursor-pointer"
+          >
+            {isGlobalApprover ? (
+              <>
+                <option value="all">Tất cả tổ chuyên môn (Toàn trường)</option>
+                {departments.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+              </>
+            ) : isVP ? (
+              <>
+                <option value="all">Tất cả tổ phụ trách ({vpDepartments.length} tổ)</option>
+                {vpDepartments.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+              </>
+            ) : (
+              <option value="all">
+                {profile?.department?.name || 'Tổ chuyên môn của bạn'}
+              </option>
+            )}
+          </select>
+        </div>
       </div>
 
       {/* Resource List Cards */}
@@ -289,7 +353,7 @@ export function ApprovalPage() {
                   </a>
 
                   {/* Tổ trưởng actions */}
-                  {res.status === 'submitted' && isLeader && (
+                  {res.status === 'submitted' && canLeaderReview(res) && (
                     <>
                       <button
                         onClick={() => handleOpenAction(res, 'subject_leader_approve')}
@@ -306,8 +370,8 @@ export function ApprovalPage() {
                     </>
                   )}
 
-                  {/* BGH actions */}
-                  {res.status === 'pending_school_approval' && isSchoolAdmin && (
+                  {/* BGH actions (Hiệu trưởng duyệt bất kỳ tổ nào, Phó hiệu trưởng duyệt các tổ phụ trách) */}
+                  {res.status === 'pending_school_approval' && canSchoolReview(res) && (
                     <>
                       <button
                         onClick={() => handleOpenAction(res, 'school_approve')}

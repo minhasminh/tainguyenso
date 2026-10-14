@@ -414,6 +414,7 @@ app.put('/api/users/:id', async (req: Request, res: Response) => {
   delete updates.id;
   delete updates.department;
   delete updates.subject;
+  delete updates.department_ids;
 
   if (updates.department_id !== undefined) {
     updates.department_id = sanitizeServerDeptId(updates.department_id);

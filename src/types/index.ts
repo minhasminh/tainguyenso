@@ -45,6 +45,7 @@ export interface Profile {
   email: string | null;
   avatar_url: string | null;
   department_id: string | null;
+  department_ids?: string[]; // Array of assigned department IDs (for Phó hiệu trưởng in multiple departments)
   subject_id: string | null;
   role: UserRole;
   status: UserStatus;
@@ -52,6 +53,7 @@ export interface Profile {
   created_at: string;
   updated_at: string;
   department?: Department | null;
+  departments?: Department[];
   subject?: Subject | null;
 }
 

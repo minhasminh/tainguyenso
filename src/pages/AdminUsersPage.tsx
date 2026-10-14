@@ -36,6 +36,7 @@ import {
   ShieldAlert,
   Trash2,
   FileSpreadsheet,
+  Building2,
 } from 'lucide-react';
 import { ExcelImportUsersModal } from '../components/users/ExcelImportUsersModal';
 
@@ -116,6 +117,7 @@ export function AdminUsersPage() {
     full_name: '',
     email: '',
     department_id: '',
+    department_ids: [] as string[],
     subject_id: '',
     role: 'TEACHER' as UserRole,
     status: 'active' as UserStatus,
@@ -232,10 +234,15 @@ export function AdminUsersPage() {
   // Open Edit Modal
   const handleOpenEdit = (user: Profile) => {
     setEditingUser(user);
+    const userDepts = user.department_ids && user.department_ids.length > 0
+      ? user.department_ids
+      : (user.department_id ? [user.department_id] : []);
+
     setFormData({
       full_name: user.full_name,
       email: user.email || '',
-      department_id: user.department_id || '',
+      department_id: user.department_id || (userDepts[0] || ''),
+      department_ids: userDepts,
       subject_id: user.subject_id || '',
       role: user.role,
       status: user.status,
@@ -305,10 +312,15 @@ export function AdminUsersPage() {
     setActionLoading(true);
 
     try {
+      const deptsToSave = formData.role === 'VICE_PRINCIPAL'
+        ? formData.department_ids
+        : (formData.department_id ? [formData.department_id] : []);
+
       const updates: Partial<Profile> = {
         full_name: formData.full_name.trim(),
         email: formData.email.trim().toLowerCase(),
-        department_id: formData.department_id || null,
+        department_id: deptsToSave[0] || formData.department_id || null,
+        department_ids: deptsToSave,
         subject_id: formData.subject_id || null,
       };
 
@@ -420,20 +432,25 @@ export function AdminUsersPage() {
     setActionLoading(true);
 
     try {
+      const deptsToSave = formData.role === 'VICE_PRINCIPAL'
+        ? formData.department_ids
+        : (formData.department_id ? [formData.department_id] : []);
+
       const created = await userService.createProfile(
         {
           full_name: formData.full_name.trim(),
           email: formData.email.trim().toLowerCase(),
           role: formData.role,
           status: formData.status,
-          department_id: formData.department_id || null,
+          department_id: deptsToSave[0] || formData.department_id || null,
+          department_ids: deptsToSave,
           subject_id: formData.subject_id || null,
         },
         callerProfile,
         finalPassword
       );
 
-      const dept = departments.find((d) => d.id === formData.department_id);
+      const dept = departments.find((d) => d.id === (deptsToSave[0] || formData.department_id));
       const sub = subjects.find((s) => s.id === formData.subject_id);
 
       toast.success('Tạo tài khoản giáo viên mới thành công!');
@@ -442,6 +459,7 @@ export function AdminUsersPage() {
         full_name: '',
         email: '',
         department_id: '',
+        department_ids: [],
         subject_id: '',
         role: 'TEACHER',
         status: 'active',
@@ -531,6 +549,7 @@ export function AdminUsersPage() {
                   full_name: '',
                   email: '',
                   department_id: '',
+                  department_ids: [],
                   subject_id: '',
                   role: 'TEACHER',
                   status: 'active',
@@ -695,7 +714,25 @@ export function AdminUsersPage() {
 
                       {/* Department */}
                       <td className="py-3 px-4 font-medium text-slate-800">
-                        {user.department?.name || <span className="text-slate-400">—</span>}
+                        {user.role === 'VICE_PRINCIPAL' && user.department_ids && user.department_ids.length > 1 ? (
+                          <div className="flex flex-wrap gap-1 max-w-xs">
+                            {departments
+                              .filter((d) => user.department_ids?.includes(d.id))
+                              .map((d) => (
+                                <span
+                                  key={d.id}
+                                  className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-200"
+                                >
+                                  {d.name}
+                                </span>
+                              ))}
+                          </div>
+                        ) : (
+                          user.department?.name ||
+                          departments.find((d) => d.id === user.department_id)?.name || (
+                            <span className="text-slate-400">—</span>
+                          )
+                        )}
                       </td>
 
                       {/* Subject */}
@@ -915,39 +952,121 @@ export function AdminUsersPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Tổ chuyên môn</label>
-                  <select
-                    value={formData.department_id}
-                    onChange={(e) => setFormData({ ...formData, department_id: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  >
-                    <option value="">-- Chưa phân bổ --</option>
-                    {departments.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.name}
-                      </option>
-                    ))}
-                  </select>
+              {formData.role === 'VICE_PRINCIPAL' ? (
+                <div className="p-3 bg-indigo-50/60 border border-indigo-200 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+                      <Building2 className="w-3.5 h-3.5 text-indigo-600" />
+                      Các tổ chuyên môn phụ trách (Phó hiệu trưởng có thể ở trong nhiều tổ để duyệt sản phẩm):
+                    </label>
+                    <div className="flex items-center gap-2 text-[11px]">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFormData({
+                            ...formData,
+                            department_ids: departments.map((d) => d.id),
+                            department_id: departments[0]?.id || '',
+                          })
+                        }
+                        className="text-indigo-600 hover:text-indigo-800 font-semibold cursor-pointer"
+                      >
+                        Chọn tất cả
+                      </button>
+                      <span className="text-slate-300">|</span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFormData({
+                            ...formData,
+                            department_ids: [],
+                            department_id: '',
+                          })
+                        }
+                        className="text-slate-500 hover:text-slate-700 cursor-pointer"
+                      >
+                        Bỏ chọn
+                      </button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                    {departments.map((d) => {
+                      const checked = formData.department_ids.includes(d.id);
+                      return (
+                        <label
+                          key={d.id}
+                          className={`flex items-center gap-2 p-2 rounded-lg border text-xs cursor-pointer transition ${
+                            checked
+                              ? 'bg-white border-indigo-300 shadow-2xs font-semibold text-indigo-900'
+                              : 'bg-slate-50/60 border-slate-200 text-slate-700 hover:bg-white'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              const next = e.target.checked
+                                ? [...formData.department_ids, d.id]
+                                : formData.department_ids.filter((id) => id !== d.id);
+                              setFormData({
+                                ...formData,
+                                department_ids: next,
+                                department_id: next[0] || '',
+                              });
+                            }}
+                            className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer"
+                          />
+                          <span className="truncate">{d.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[11px] text-indigo-700/80">
+                    Phó hiệu trưởng sẽ có thẩm quyền xem và phê duyệt sản phẩm của tất cả các tổ được tích chọn.
+                  </p>
                 </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Tổ chuyên môn</label>
+                    <select
+                      value={formData.department_id}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setFormData({
+                          ...formData,
+                          department_id: val,
+                          department_ids: val ? [val] : [],
+                        });
+                      }}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="">-- Chưa phân bổ --</option>
+                      {departments.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Bộ môn giảng dạy</label>
-                  <select
-                    value={formData.subject_id}
-                    onChange={(e) => setFormData({ ...formData, subject_id: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  >
-                    <option value="">-- Chưa phân bổ --</option>
-                    {subjects.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </select>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Bộ môn giảng dạy</label>
+                    <select
+                      value={formData.subject_id}
+                      onChange={(e) => setFormData({ ...formData, subject_id: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="">-- Chưa phân bổ --</option>
+                      {subjects.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* RBAC Role & Status (Editable for ADMIN and SCHOOL_ADMIN / VICE_PRINCIPAL) */}
               {canManageUsers ? (
@@ -1211,39 +1330,121 @@ export function AdminUsersPage() {
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Tổ chuyên môn</label>
-                  <select
-                    value={formData.department_id}
-                    onChange={(e) => setFormData({ ...formData, department_id: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  >
-                    <option value="">-- Chưa chọn tổ --</option>
-                    {departments.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.name}
-                      </option>
-                    ))}
-                  </select>
+              {formData.role === 'VICE_PRINCIPAL' ? (
+                <div className="p-3 bg-indigo-50/60 border border-indigo-200 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+                      <Building2 className="w-3.5 h-3.5 text-indigo-600" />
+                      Các tổ chuyên môn phụ trách (Phó hiệu trưởng có thể ở trong nhiều tổ để duyệt sản phẩm):
+                    </label>
+                    <div className="flex items-center gap-2 text-[11px]">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFormData({
+                            ...formData,
+                            department_ids: departments.map((d) => d.id),
+                            department_id: departments[0]?.id || '',
+                          })
+                        }
+                        className="text-indigo-600 hover:text-indigo-800 font-semibold cursor-pointer"
+                      >
+                        Chọn tất cả
+                      </button>
+                      <span className="text-slate-300">|</span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFormData({
+                            ...formData,
+                            department_ids: [],
+                            department_id: '',
+                          })
+                        }
+                        className="text-slate-500 hover:text-slate-700 cursor-pointer"
+                      >
+                        Bỏ chọn
+                      </button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                    {departments.map((d) => {
+                      const checked = formData.department_ids.includes(d.id);
+                      return (
+                        <label
+                          key={d.id}
+                          className={`flex items-center gap-2 p-2 rounded-lg border text-xs cursor-pointer transition ${
+                            checked
+                              ? 'bg-white border-indigo-300 shadow-2xs font-semibold text-indigo-900'
+                              : 'bg-slate-50/60 border-slate-200 text-slate-700 hover:bg-white'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              const next = e.target.checked
+                                ? [...formData.department_ids, d.id]
+                                : formData.department_ids.filter((id) => id !== d.id);
+                              setFormData({
+                                ...formData,
+                                department_ids: next,
+                                department_id: next[0] || '',
+                              });
+                            }}
+                            className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer"
+                          />
+                          <span className="truncate">{d.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[11px] text-indigo-700/80">
+                    Phó hiệu trưởng sẽ có thẩm quyền xem và phê duyệt sản phẩm của tất cả các tổ được tích chọn.
+                  </p>
                 </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Tổ chuyên môn</label>
+                    <select
+                      value={formData.department_id}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setFormData({
+                          ...formData,
+                          department_id: val,
+                          department_ids: val ? [val] : [],
+                        });
+                      }}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="">-- Chưa chọn tổ --</option>
+                      {departments.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Bộ môn giảng dạy</label>
-                  <select
-                    value={formData.subject_id}
-                    onChange={(e) => setFormData({ ...formData, subject_id: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  >
-                    <option value="">-- Chưa chọn môn --</option>
-                    {subjects.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </select>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Bộ môn giảng dạy</label>
+                    <select
+                      value={formData.subject_id}
+                      onChange={(e) => setFormData({ ...formData, subject_id: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="">-- Chưa chọn môn --</option>
+                      {subjects.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-200">
                 <div>

@@ -4,6 +4,7 @@ import { Resource, ResourceFilterParams, Profile } from '../types';
 import { realtimeService } from './realtimeService';
 import { auditLogService } from './auditLogService';
 import { notificationService } from './notificationService';
+import { getUserDepartmentIds } from '../utils/formatters';
 
 function isMissingTableError(err: any): boolean {
   if (!err) return false;
@@ -858,6 +859,13 @@ export const resourceService = {
       const { data: currentRes } = await client.from('resources').select('*').eq('id', id).single();
       const prevStatus = currentRes?.status || 'pending_school_approval';
 
+      if (callerProfile.role === 'VICE_PRINCIPAL') {
+        const userDepts = getUserDepartmentIds(callerProfile);
+        if (userDepts.length > 0 && (!currentRes?.department_id || !userDepts.includes(currentRes.department_id))) {
+          throw new Error('RLS: Phó hiệu trưởng chỉ có thẩm quyền phê duyệt sản phẩm thuộc các tổ chuyên môn được phân công phụ trách.');
+        }
+      }
+
       const { data: updated, error: updateErr } = await client
         .from('resources')
         .update({
@@ -922,6 +930,13 @@ export const resourceService = {
       const { data: currentRes } = await client.from('resources').select('*').eq('id', id).single();
       const prevStatus = currentRes?.status || 'pending_school_approval';
 
+      if (callerProfile.role === 'VICE_PRINCIPAL') {
+        const userDepts = getUserDepartmentIds(callerProfile);
+        if (userDepts.length > 0 && (!currentRes?.department_id || !userDepts.includes(currentRes.department_id))) {
+          throw new Error('RLS: Phó hiệu trưởng chỉ có thẩm quyền yêu cầu chỉnh sửa sản phẩm thuộc các tổ chuyên môn được phân công phụ trách.');
+        }
+      }
+
       const { data: updated, error: updateErr } = await client
         .from('resources')
         .update({
@@ -983,6 +998,13 @@ export const resourceService = {
       const now = new Date().toISOString();
       const { data: currentRes } = await client.from('resources').select('*').eq('id', id).single();
       const prevStatus = currentRes?.status || 'pending_school_approval';
+
+      if (callerProfile.role === 'VICE_PRINCIPAL') {
+        const userDepts = getUserDepartmentIds(callerProfile);
+        if (userDepts.length > 0 && (!currentRes?.department_id || !userDepts.includes(currentRes.department_id))) {
+          throw new Error('RLS: Phó hiệu trưởng chỉ có thẩm quyền từ chối phê duyệt sản phẩm thuộc các tổ chuyên môn được phân công phụ trách.');
+        }
+      }
 
       const { data: updated, error: updateErr } = await client
         .from('resources')

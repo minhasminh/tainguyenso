@@ -24,7 +24,7 @@ import {
   ResourceSyncLog,
   GoogleFormSyncStats,
 } from '../../types';
-import { vietnameseSearchMatches, normalizeDepartmentName } from '../../utils/formatters';
+import { vietnameseSearchMatches, normalizeDepartmentName, getUserDepartmentIds } from '../../utils/formatters';
 import {
   MASTER_DEPARTMENTS,
   MASTER_SUBJECTS,
@@ -48,6 +48,7 @@ export interface DemoAccount {
   role: UserRole;
   status: UserStatus;
   department_id: string | null;
+  department_ids?: string[];
   subject_id: string | null;
   avatar_url: string;
 }
@@ -61,6 +62,7 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
     role: 'ADMIN',
     status: 'active',
     department_id: null,
+    department_ids: [],
     subject_id: null,
     avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
   },
@@ -72,6 +74,7 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
     role: 'SCHOOL_ADMIN',
     status: 'active',
     department_id: null,
+    department_ids: [],
     subject_id: null,
     avatar_url: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
   },
@@ -82,7 +85,11 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
     full_name: 'Trần Thị Bích (Phó Hiệu trưởng)',
     role: 'VICE_PRINCIPAL',
     status: 'active',
-    department_id: null,
+    department_id: 'd1111111-1111-1111-1111-111111111111',
+    department_ids: [
+      'd1111111-1111-1111-1111-111111111111', // Tổ Khoa học tự nhiên
+      'd2222222-2222-2222-2222-222222222222', // Tổ Khoa học xã hội
+    ],
     subject_id: 'c1111111-1111-1111-1111-111111111111',
     avatar_url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80',
   },
@@ -94,6 +101,7 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
     role: 'SUBJECT_LEADER',
     status: 'active',
     department_id: 'd1111111-1111-1111-1111-111111111111',
+    department_ids: ['d1111111-1111-1111-1111-111111111111'],
     subject_id: 'c1111111-1111-1111-1111-111111111111',
     avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
   },
@@ -105,6 +113,7 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
     role: 'VICE_SUBJECT_LEADER',
     status: 'active',
     department_id: 'd1111111-1111-1111-1111-111111111111',
+    department_ids: ['d1111111-1111-1111-1111-111111111111'],
     subject_id: 'c1111111-1111-1111-1111-111111111111',
     avatar_url: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80',
   },
@@ -116,6 +125,7 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
     role: 'SUBJECT_LEADER',
     status: 'active',
     department_id: 'd2222222-2222-2222-2222-222222222222',
+    department_ids: ['d2222222-2222-2222-2222-222222222222'],
     subject_id: 'c3333333-3333-3333-3333-333333333333',
     avatar_url: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80',
   },
@@ -127,6 +137,7 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
     role: 'TEACHER',
     status: 'active',
     department_id: 'd1111111-1111-1111-1111-111111111111',
+    department_ids: ['d1111111-1111-1111-1111-111111111111'],
     subject_id: 'c2222222-2222-2222-2222-222222222222',
     avatar_url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
   },
@@ -138,6 +149,7 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
     role: 'TEACHER',
     status: 'active',
     department_id: 'd1111111-1111-1111-1111-111111111111',
+    department_ids: ['d1111111-1111-1111-1111-111111111111'],
     subject_id: 'c1111111-1111-1111-1111-111111111111',
     avatar_url: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80',
   },
@@ -149,6 +161,7 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
     role: 'TEACHER',
     status: 'active',
     department_id: 'd2222222-2222-2222-2222-222222222222',
+    department_ids: ['d2222222-2222-2222-2222-222222222222'],
     subject_id: 'c3333333-3333-3333-3333-333333333333',
     avatar_url: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=150&auto=format&fit=crop&q=80',
   },
@@ -160,6 +173,7 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
     role: 'TEACHER',
     status: 'locked',
     department_id: 'd1111111-1111-1111-1111-111111111111',
+    department_ids: ['d1111111-1111-1111-1111-111111111111'],
     subject_id: 'c1111111-1111-1111-1111-111111111111',
     avatar_url: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
   },
@@ -171,6 +185,7 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
     role: 'ADMIN',
     status: 'active',
     department_id: null,
+    department_ids: [],
     subject_id: null,
     avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
   },
@@ -436,6 +451,7 @@ export class MockDatabaseStore {
               email: acc.email,
               avatar_url: acc.avatar_url,
               department_id: acc.department_id,
+              department_ids: acc.department_ids || (acc.department_id ? [acc.department_id] : []),
               subject_id: acc.subject_id,
               role: acc.role,
               status: acc.status,
@@ -449,6 +465,11 @@ export class MockDatabaseStore {
             existing.status = 'active';
             if (acc.department_id) {
               existing.department_id = acc.department_id;
+            }
+            if (acc.department_ids) {
+              existing.department_ids = acc.department_ids;
+            } else if (acc.department_id && (!existing.department_ids || existing.department_ids.length === 0)) {
+              existing.department_ids = [acc.department_id];
             }
             if (acc.subject_id) {
               existing.subject_id = acc.subject_id;
@@ -517,6 +538,7 @@ export class MockDatabaseStore {
       email: acc.email,
       avatar_url: acc.avatar_url,
       department_id: acc.department_id,
+      department_ids: acc.department_ids || (acc.department_id ? [acc.department_id] : []),
       subject_id: acc.subject_id,
       role: acc.role,
       status: acc.status,
@@ -1418,7 +1440,9 @@ export class MockDatabaseStore {
     if (!callerProfile) throw new Error('Chưa đăng nhập');
     return this.departments.map((dept) => {
       const leader = dept.leader_id ? this.profiles.find((p) => p.id === dept.leader_id) : null;
-      const memberCount = this.profiles.filter((p) => p.department_id === dept.id).length;
+      const memberCount = this.profiles.filter(
+        (p) => p.department_id === dept.id || (p.department_ids && p.department_ids.includes(dept.id))
+      ).length;
       return {
         ...dept,
         leader: leader ? { id: leader.id, full_name: leader.full_name, email: leader.email } : null,
@@ -2763,22 +2787,42 @@ export class MockDatabaseStore {
     if (!callerProfile) throw new Error('Chưa đăng nhập');
     if (callerProfile.status !== 'active') throw new Error('Tài khoản bị khóa hoặc chưa kích hoạt');
 
-    // 1. RLS Filter (Section 21, 22, 33)
+    // 1. RLS Filter
     let list = this.resources.filter((r) => {
-      // Admin and School Admin see all
-      if (callerProfile.role === 'ADMIN' || callerProfile.role === 'SCHOOL_ADMIN' || callerProfile.role === 'VICE_PRINCIPAL') {
+      // 1. Hiệu trưởng (SCHOOL_ADMIN) và Quản trị viên (ADMIN) thấy tài nguyên của bất kỳ tổ nào
+      if (callerProfile.role === 'ADMIN' || callerProfile.role === 'SCHOOL_ADMIN') {
         return true;
       }
-      // Subject Leader sees own, approved, or in same department
-      if (callerProfile.role === 'SUBJECT_LEADER' || callerProfile.role === 'VICE_SUBJECT_LEADER') {
-        return (
-          r.owner_id === callerProfile.id ||
-          r.status === 'approved' ||
-          r.department_id === callerProfile.department_id
-        );
+
+      // 2. Phó hiệu trưởng (VICE_PRINCIPAL): có thể ở trong nhiều tổ để duyệt sản phẩm
+      if (callerProfile.role === 'VICE_PRINCIPAL') {
+        const userDepts = getUserDepartmentIds(callerProfile);
+        if (userDepts.length > 0) {
+          return r.owner_id === callerProfile.id || (r.department_id && userDepts.includes(r.department_id));
+        }
+        return true;
       }
-      // Teacher only sees own resources OR approved resources (Section 21 & 46)
-      return r.owner_id === callerProfile.id || r.status === 'approved';
+
+      // 3. Các thành viên trong cùng tổ chỉ thấy tài nguyên trong tổ
+      const userDepts = getUserDepartmentIds(callerProfile);
+      const isOwner = r.owner_id === callerProfile.id;
+      const isInSameDept = Boolean(r.department_id && userDepts.includes(r.department_id));
+
+      if (isOwner) {
+        return true;
+      }
+
+      if (isInSameDept) {
+        // Tổ trưởng & Tổ phó thấy toàn bộ tài nguyên trong tổ chuyên môn để quản lý và thẩm định
+        if (callerProfile.role === 'SUBJECT_LEADER' || callerProfile.role === 'VICE_SUBJECT_LEADER') {
+          return true;
+        }
+        // Giáo viên trong cùng tổ chỉ thấy tài nguyên đã phê duyệt trong tổ của mình
+        return r.status === 'approved';
+      }
+
+      // Không thuộc cùng tổ: tuyệt đối không thấy tài nguyên của tổ khác
+      return false;
     });
 
     // 2. Only approved resources option (Section 23)
@@ -3073,16 +3117,39 @@ export class MockDatabaseStore {
     const r = this.resources.find((x) => x.id === id);
     if (!r) throw new Error('Không tìm thấy tài nguyên');
 
-    // Security Test 7: Teacher cannot access draft/unauthorized resource by changing ID
     const isOwner = r.owner_id === callerProfile.id;
     const isApproved = r.status === 'approved';
-    const isSubjectLeaderInDept =
-      (callerProfile.role === 'SUBJECT_LEADER' || callerProfile.role === 'VICE_SUBJECT_LEADER') &&
-      r.department_id === callerProfile.department_id;
-    const isAdminOrSchool = callerProfile.role === 'ADMIN' || callerProfile.role === 'SCHOOL_ADMIN' || callerProfile.role === 'VICE_PRINCIPAL';
+    const isAdmin = callerProfile.role === 'ADMIN';
+    const isSchoolAdmin = callerProfile.role === 'SCHOOL_ADMIN'; // Hiệu trưởng
+    const isVicePrincipal = callerProfile.role === 'VICE_PRINCIPAL'; // Phó hiệu trưởng
+    const userDepts = getUserDepartmentIds(callerProfile);
+    const isInSameDept = Boolean(r.department_id && userDepts.includes(r.department_id));
 
-    if (!isOwner && !isApproved && !isSubjectLeaderInDept && !isAdminOrSchool) {
-      throw new Error('RLS: Bạn không có quyền truy cập tài nguyên này.');
+    // Hiệu trưởng và Quản trị viên có thể thấy tài nguyên của bất kỳ tổ nào
+    if (isAdmin || isSchoolAdmin) {
+      return this.attachResourceRelations(r);
+    }
+
+    if (isOwner) {
+      return this.attachResourceRelations(r);
+    }
+
+    // Phó hiệu trưởng: xem tài nguyên của các tổ được phân công phụ trách
+    if (isVicePrincipal) {
+      if (userDepts.length > 0 && !isInSameDept) {
+        throw new Error('RLS: Phó hiệu trưởng chỉ có quyền truy cập tài nguyên thuộc các tổ chuyên môn được phân công phụ trách.');
+      }
+      return this.attachResourceRelations(r);
+    }
+
+    // Các thành viên trong cùng tổ chỉ thấy tài nguyên trong tổ
+    if (!isInSameDept) {
+      throw new Error('RLS: Thành viên trong cùng tổ chỉ được xem tài nguyên trong tổ chuyên môn của mình.');
+    }
+
+    // Giáo viên trong tổ chỉ xem được tài nguyên đã duyệt trong tổ
+    if (callerProfile.role === 'TEACHER' && !isApproved) {
+      throw new Error('RLS: Bạn chỉ xem được tài nguyên đã duyệt hoặc do chính mình tạo.');
     }
 
     return this.attachResourceRelations(r);
@@ -3551,20 +3618,15 @@ export class MockDatabaseStore {
     if (index === -1) throw new Error('Không tìm thấy tài nguyên.');
 
     const res = this.resources[index];
-    if (
-      callerProfile.role !== 'SUBJECT_LEADER' &&
-      callerProfile.role !== 'VICE_SUBJECT_LEADER' &&
-      callerProfile.role !== 'ADMIN' &&
-      callerProfile.role !== 'SCHOOL_ADMIN'
-    ) {
-      throw new Error('Chỉ Tổ trưởng hoặc Tổ phó chuyên môn mới có thẩm quyền thẩm định tài nguyên.');
-    }
-
-    if (
+    const userDepts = getUserDepartmentIds(callerProfile);
+    const isGlobal = callerProfile.role === 'ADMIN' || callerProfile.role === 'SCHOOL_ADMIN';
+    const isVP = callerProfile.role === 'VICE_PRINCIPAL' && (userDepts.length === 0 || (res.department_id && userDepts.includes(res.department_id)));
+    const isLeaderInDept =
       (callerProfile.role === 'SUBJECT_LEADER' || callerProfile.role === 'VICE_SUBJECT_LEADER') &&
-      res.department_id !== callerProfile.department_id
-    ) {
-      throw new Error('RLS: Bạn chỉ được thẩm định tài nguyên thuộc Tổ chuyên môn của mình.');
+      Boolean(res.department_id && userDepts.includes(res.department_id));
+
+    if (!isGlobal && !isVP && !isLeaderInDept) {
+      throw new Error('Chỉ Tổ trưởng, Tổ phó của tổ chuyên môn này, Phó hiệu trưởng phụ trách hoặc Ban Giám hiệu mới có thẩm quyền thẩm định tài nguyên.');
     }
 
     if (callerProfile.role !== 'ADMIN' && res.status !== 'submitted') {
@@ -3662,20 +3724,15 @@ export class MockDatabaseStore {
     if (index === -1) throw new Error('Không tìm thấy tài nguyên.');
 
     const res = this.resources[index];
-    if (
-      callerProfile.role !== 'SUBJECT_LEADER' &&
-      callerProfile.role !== 'VICE_SUBJECT_LEADER' &&
-      callerProfile.role !== 'ADMIN' &&
-      callerProfile.role !== 'SCHOOL_ADMIN'
-    ) {
-      throw new Error('Chỉ Tổ trưởng hoặc Tổ phó chuyên môn mới có thẩm quyền yêu cầu chỉnh sửa.');
-    }
-
-    if (
+    const userDepts = getUserDepartmentIds(callerProfile);
+    const isGlobal = callerProfile.role === 'ADMIN' || callerProfile.role === 'SCHOOL_ADMIN';
+    const isVP = callerProfile.role === 'VICE_PRINCIPAL' && (userDepts.length === 0 || (res.department_id && userDepts.includes(res.department_id)));
+    const isLeaderInDept =
       (callerProfile.role === 'SUBJECT_LEADER' || callerProfile.role === 'VICE_SUBJECT_LEADER') &&
-      res.department_id !== callerProfile.department_id
-    ) {
-      throw new Error('RLS: Bạn chỉ được yêu cầu chỉnh sửa tài nguyên thuộc Tổ chuyên môn của mình.');
+      Boolean(res.department_id && userDepts.includes(res.department_id));
+
+    if (!isGlobal && !isVP && !isLeaderInDept) {
+      throw new Error('Chỉ Tổ trưởng, Tổ phó của tổ chuyên môn này, Phó hiệu trưởng phụ trách hoặc Ban Giám hiệu mới có thẩm quyền yêu cầu chỉnh sửa.');
     }
 
     if (callerProfile.role !== 'ADMIN' && res.status !== 'submitted') {
@@ -3741,20 +3798,15 @@ export class MockDatabaseStore {
     if (index === -1) throw new Error('Không tìm thấy tài nguyên.');
 
     const res = this.resources[index];
-    if (
-      callerProfile.role !== 'SUBJECT_LEADER' &&
-      callerProfile.role !== 'VICE_SUBJECT_LEADER' &&
-      callerProfile.role !== 'ADMIN' &&
-      callerProfile.role !== 'SCHOOL_ADMIN'
-    ) {
-      throw new Error('Chỉ Tổ trưởng hoặc Tổ phó chuyên môn mới có quyền từ chối duyệt.');
-    }
-
-    if (
+    const userDepts = getUserDepartmentIds(callerProfile);
+    const isGlobal = callerProfile.role === 'ADMIN' || callerProfile.role === 'SCHOOL_ADMIN';
+    const isVP = callerProfile.role === 'VICE_PRINCIPAL' && (userDepts.length === 0 || (res.department_id && userDepts.includes(res.department_id)));
+    const isLeaderInDept =
       (callerProfile.role === 'SUBJECT_LEADER' || callerProfile.role === 'VICE_SUBJECT_LEADER') &&
-      res.department_id !== callerProfile.department_id
-    ) {
-      throw new Error('RLS: Bạn chỉ được từ chối tài nguyên thuộc Tổ chuyên môn của mình.');
+      Boolean(res.department_id && userDepts.includes(res.department_id));
+
+    if (!isGlobal && !isVP && !isLeaderInDept) {
+      throw new Error('Chỉ Tổ trưởng, Tổ phó của tổ chuyên môn này, Phó hiệu trưởng phụ trách hoặc Ban Giám hiệu mới có quyền từ chối duyệt.');
     }
 
     if (callerProfile.role !== 'ADMIN' && res.status !== 'submitted') {
@@ -3823,6 +3875,16 @@ export class MockDatabaseStore {
     if (callerProfile.role !== 'SCHOOL_ADMIN' && callerProfile.role !== 'VICE_PRINCIPAL' && callerProfile.role !== 'ADMIN') {
       throw new Error('Chỉ Hiệu trưởng, Phó hiệu trưởng hoặc Quản trị viên mới có quyền phê duyệt cấp trường.');
     }
+
+    // Phó hiệu trưởng có thể ở trong nhiều tổ để duyệt sản phẩm:
+    // Kiểm tra nếu Phó hiệu trưởng được phân công theo tổ
+    if (callerProfile.role === 'VICE_PRINCIPAL') {
+      const userDepts = getUserDepartmentIds(callerProfile);
+      if (userDepts.length > 0 && (!res.department_id || !userDepts.includes(res.department_id))) {
+        throw new Error('RLS: Phó hiệu trưởng chỉ có thẩm quyền phê duyệt sản phẩm thuộc các tổ chuyên môn được phân công phụ trách.');
+      }
+    }
+    // Hiệu trưởng (SCHOOL_ADMIN) và ADMIN có thể duyệt tài nguyên của bất kỳ tổ nào
 
     if (callerProfile.role !== 'ADMIN' && res.status !== 'pending_school_approval') {
       throw new Error('Chỉ có thể phê duyệt cấp trường khi tài nguyên đã qua thẩm định cấp tổ (Chờ BGH phê duyệt).');
@@ -3895,6 +3957,13 @@ export class MockDatabaseStore {
       throw new Error('Chỉ Hiệu trưởng hoặc Phó hiệu trưởng mới có quyền yêu cầu chỉnh sửa.');
     }
 
+    if (callerProfile.role === 'VICE_PRINCIPAL') {
+      const userDepts = getUserDepartmentIds(callerProfile);
+      if (userDepts.length > 0 && (!res.department_id || !userDepts.includes(res.department_id))) {
+        throw new Error('RLS: Phó hiệu trưởng chỉ có thẩm quyền yêu cầu chỉnh sửa sản phẩm thuộc các tổ chuyên môn được phân công phụ trách.');
+      }
+    }
+
     if (callerProfile.role !== 'ADMIN' && res.status !== 'pending_school_approval') {
       throw new Error('Chỉ có thể yêu cầu chỉnh sửa tài nguyên đang ở trạng thái Chờ BGH phê duyệt.');
     }
@@ -3960,6 +4029,13 @@ export class MockDatabaseStore {
     const res = this.resources[index];
     if (callerProfile.role !== 'SCHOOL_ADMIN' && callerProfile.role !== 'VICE_PRINCIPAL' && callerProfile.role !== 'ADMIN') {
       throw new Error('Chỉ Hiệu trưởng hoặc Phó hiệu trưởng mới có quyền từ chối phê duyệt.');
+    }
+
+    if (callerProfile.role === 'VICE_PRINCIPAL') {
+      const userDepts = getUserDepartmentIds(callerProfile);
+      if (userDepts.length > 0 && (!res.department_id || !userDepts.includes(res.department_id))) {
+        throw new Error('RLS: Phó hiệu trưởng chỉ có thẩm quyền từ chối phê duyệt sản phẩm thuộc các tổ chuyên môn được phân công phụ trách.');
+      }
     }
 
     if (callerProfile.role !== 'ADMIN' && res.status !== 'pending_school_approval') {
@@ -4284,11 +4360,24 @@ export class MockDatabaseStore {
 
     // 1. Enforce Role-Based RLS scoping
     let scoped = [...this.resources];
+    const userDepts = getUserDepartmentIds(callerProfile);
+
     if (role === 'TEACHER') {
-      scoped = scoped.filter((r) => r.owner_id === callerProfile.id);
+      // Các thành viên trong cùng tổ chỉ thấy tài nguyên trong tổ
+      if (userDepts.length > 0) {
+        scoped = scoped.filter((r) => r.owner_id === callerProfile.id || (r.department_id && userDepts.includes(r.department_id) && r.status === 'approved'));
+      } else {
+        scoped = scoped.filter((r) => r.owner_id === callerProfile.id);
+      }
     } else if (role === 'SUBJECT_LEADER' || role === 'VICE_SUBJECT_LEADER') {
-      scoped = scoped.filter((r) => r.department_id === callerProfile.department_id);
+      scoped = scoped.filter((r) => r.owner_id === callerProfile.id || (r.department_id && userDepts.includes(r.department_id)));
+    } else if (role === 'VICE_PRINCIPAL') {
+      // Phó hiệu trưởng ở trong nhiều tổ
+      if (userDepts.length > 0) {
+        scoped = scoped.filter((r) => r.owner_id === callerProfile.id || (r.department_id && userDepts.includes(r.department_id)));
+      }
     }
+    // Hiệu trưởng (SCHOOL_ADMIN) và ADMIN thấy toàn bộ tài nguyên của bất kỳ tổ nào
 
     // 2. Apply Filters
     // 2.1 Academic Year
@@ -4298,9 +4387,17 @@ export class MockDatabaseStore {
       );
     }
 
-    // 2.2 Department Filter (Subject Leader is strictly bound to their department)
-    if (role === 'SUBJECT_LEADER' || role === 'VICE_SUBJECT_LEADER') {
-      scoped = scoped.filter((r) => r.department_id === callerProfile.department_id);
+    // 2.2 Department Filter
+    if (role === 'SUBJECT_LEADER' || role === 'VICE_SUBJECT_LEADER' || role === 'TEACHER') {
+      if (userDepts.length > 0) {
+        scoped = scoped.filter((r) => r.department_id && userDepts.includes(r.department_id));
+      }
+    } else if (role === 'VICE_PRINCIPAL') {
+      if (filters.departmentId && filters.departmentId !== 'all') {
+        scoped = scoped.filter((r) => r.department_id === filters.departmentId);
+      } else if (userDepts.length > 0) {
+        scoped = scoped.filter((r) => r.department_id && userDepts.includes(r.department_id));
+      }
     } else if (filters.departmentId && filters.departmentId !== 'all') {
       scoped = scoped.filter((r) => r.department_id === filters.departmentId);
     }
@@ -4782,11 +4879,15 @@ export class MockDatabaseStore {
   }
 
   private attachRelations(profile: Profile): Profile {
-    const dept = this.departments.find((d) => d.id === profile.department_id);
+    const userDeptIds = getUserDepartmentIds(profile);
+    const depts = this.departments.filter((d) => userDeptIds.includes(d.id));
+    const dept = this.departments.find((d) => d.id === profile.department_id) || depts[0] || null;
     const subj = this.subjects.find((s) => s.id === profile.subject_id);
     return {
       ...profile,
+      department_ids: userDeptIds,
       department: dept ? { ...dept } : null,
+      departments: depts.map((d) => ({ ...d })),
       subject: subj ? { ...subj } : null,
     };
   }
