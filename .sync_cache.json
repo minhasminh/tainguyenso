@@ -1,5 +1,68 @@
 [
   {
+    "id": "sheet_dup_sheet_1gH6zehW_r43_29_09_2026_5_39_32",
+    "submission_id": "sheet_1gH6zehW_r43_29_09_2026_5_39_32",
+    "teacher_email": "ducminh1973@gmail.com",
+    "teacher_name": "Vũ Đức Minh",
+    "title": "Trạm phân loại thông tin",
+    "description": "Bài 2. Thông tin trong giải quyết vấn đề (Lớp: 9/1)",
+    "resource_type": "Học liệu số",
+    "department": "Khoa học tự nhiên",
+    "subject": "Tin học",
+    "grade": "Khối 9",
+    "topic": "Chủ đề A: Máy tính và cộng đồng",
+    "academic_year": "2026 - 2027",
+    "resource_url": "https://drive.google.com/open?id=1_LWESrrWKF6K8U_VzQ8ek02zfGA3fZH7",
+    "drive_file_id": "1_LWESrrWKF6K8U_VzQ8ek02zfGA3fZH7",
+    "status": "submitted",
+    "sync_status": "synced",
+    "message": "Đã lưu trong hệ thống từ Google Sheet",
+    "received_at": "2026-10-21T17:01:00.245Z",
+    "resource_id": "4d1029a9-18eb-42c3-ac82-1ac59040cae2"
+  },
+  {
+    "id": "sheet_dup_sheet_1gH6zehW_r42_21_10_2026_23_43_41",
+    "submission_id": "sheet_1gH6zehW_r42_21_10_2026_23_43_41",
+    "teacher_email": "letam282.hue@gmail.com",
+    "teacher_name": "Giáo viên",
+    "title": "Bài 13: Con vẹt xanh",
+    "description": "Giúp học sinh hiểu sâu sắc sự chuyển biến tâm lý của nhân vật Tú ( từ háo hức, sung sướng sang bàng hoàng, hối hận) và rút ra bài học về ý thức giữ gìn lời ăn tiếng nói, sự lễ phép với người thân. (Lớp: 4/3)",
+    "resource_type": "Học liệu số",
+    "department": "Tổ 4-5",
+    "subject": "Tiếng Việt (TH)",
+    "grade": "Khối 4",
+    "topic": "Chủ đề 2: Trải nghiệm và khám phá",
+    "academic_year": "2026 - 2027",
+    "resource_url": "https://drive.google.com/open?id=1XUklL4QkMnEW5PWWAPWMEZzpV0VtD5eI",
+    "drive_file_id": "1XUklL4QkMnEW5PWWAPWMEZzpV0VtD5eI",
+    "status": "submitted",
+    "sync_status": "synced",
+    "message": "Đã lưu trong hệ thống từ Google Sheet",
+    "received_at": "2026-10-21T17:01:00.020Z",
+    "resource_id": "422403a6-d015-4a9d-8f08-c5d8d1210aa2"
+  },
+  {
+    "id": "sheet_dup_sheet_1gH6zehW_r41_21_10_2026_23_30_49",
+    "submission_id": "sheet_1gH6zehW_r41_21_10_2026_23_30_49",
+    "teacher_email": "letam282.hue@gmail.com",
+    "teacher_name": "Giáo viên",
+    "title": "Bài 7: Ôn tập chủ đề chất",
+    "description": "Hệ thống hóa kiến thức trọng tâm của chủ đề Chất (bao gồm các nhánh về Nước và Không khí) thông qua hoạt động kéo thả từ khóa vào sơ đồ tư duy. (Lớp: 4/3)",
+    "resource_type": "Học liệu số",
+    "department": "Tổ 4-5",
+    "subject": "Khoa học (TH)",
+    "grade": "Khối 4",
+    "topic": "Chủ đề: Chất",
+    "academic_year": "2026 - 2027",
+    "resource_url": "https://drive.google.com/open?id=1TIA45Uwh-5QREuFe87SYKW2i3EoNlvSo",
+    "drive_file_id": "1TIA45Uwh-5QREuFe87SYKW2i3EoNlvSo",
+    "status": "submitted",
+    "sync_status": "synced",
+    "message": "Đã lưu trong hệ thống từ Google Sheet",
+    "received_at": "2026-10-21T17:00:59.753Z",
+    "resource_id": "3433d06d-be30-4bea-afd0-1e8045163b2b"
+  },
+  {
     "id": "sheet_dup_sheet_1gH6zehW_r41_29_09_2026_5_39_32",
     "submission_id": "sheet_1gH6zehW_r41_29_09_2026_5_39_32",
     "teacher_email": "ducminh1973@gmail.com",
@@ -38,7 +101,7 @@
     "status": "submitted",
     "sync_status": "synced",
     "message": "Đã lưu trong hệ thống từ Google Sheet",
-    "received_at": "2026-10-21T15:31:02.289Z",
+    "received_at": "2026-10-21T17:00:59.527Z",
     "resource_id": "2eff5dfc-4296-439d-9255-300bbd6a0320"
   },
   {
@@ -80,7 +143,7 @@
     "status": "submitted",
     "sync_status": "synced",
     "message": "Đã lưu trong hệ thống từ Google Sheet",
-    "received_at": "2026-10-21T15:31:02.085Z",
+    "received_at": "2026-10-21T17:00:59.295Z",
     "resource_id": "19893948-bb50-4ca8-98a3-f5527a6696c2"
   },
   {
@@ -101,7 +164,7 @@
     "status": "submitted",
     "sync_status": "synced",
     "message": "Đã lưu trong hệ thống từ Google Sheet",
-    "received_at": "2026-10-21T15:31:01.887Z",
+    "received_at": "2026-10-21T17:00:59.050Z",
     "resource_id": "684efa5e-87a3-4395-a892-910faf852bb8"
   },
   {
@@ -122,7 +185,7 @@
     "status": "submitted",
     "sync_status": "synced",
     "message": "Đã lưu trong hệ thống từ Google Sheet",
-    "received_at": "2026-10-21T15:31:01.658Z",
+    "received_at": "2026-10-21T17:00:58.838Z",
     "resource_id": "5f737793-d3af-4dc2-9a64-fdba3794ed53"
   },
   {
@@ -143,7 +206,7 @@
     "status": "submitted",
     "sync_status": "synced",
     "message": "Đã lưu trong hệ thống từ Google Sheet",
-    "received_at": "2026-10-21T15:31:01.461Z",
+    "received_at": "2026-10-21T17:00:58.625Z",
     "resource_id": "dda3f766-64ce-44e8-acbf-ef2122b0de15"
   },
   {
@@ -164,7 +227,7 @@
     "status": "submitted",
     "sync_status": "synced",
     "message": "Đã lưu trong hệ thống từ Google Sheet",
-    "received_at": "2026-10-21T15:31:01.254Z",
+    "received_at": "2026-10-21T17:00:58.406Z",
     "resource_id": "1ac8e65f-98e2-4700-8db5-3cb481909a3e"
   },
   {
@@ -185,7 +248,7 @@
     "status": "submitted",
     "sync_status": "synced",
     "message": "Đã lưu trong hệ thống từ Google Sheet",
-    "received_at": "2026-10-21T15:31:01.054Z",
+    "received_at": "2026-10-21T17:00:58.200Z",
     "resource_id": "76703488-3ebb-4295-939d-5e25b84beaed"
   },
   {
@@ -206,7 +269,7 @@
     "status": "submitted",
     "sync_status": "synced",
     "message": "Đã lưu trong hệ thống từ Google Sheet",
-    "received_at": "2026-10-21T15:31:00.852Z",
+    "received_at": "2026-10-21T17:00:57.947Z",
     "resource_id": "506f7770-35d5-464f-9dc0-8d1c2e4d0996"
   },
   {
@@ -227,7 +290,7 @@
     "status": "submitted",
     "sync_status": "synced",
     "message": "Đã lưu trong hệ thống từ Google Sheet",
-    "received_at": "2026-10-21T15:31:00.245Z",
+    "received_at": "2026-10-21T17:00:57.727Z",
     "resource_id": "bec8473b-cd9f-449a-a4ef-574adaa1b435"
   },
   {
@@ -248,7 +311,7 @@
     "status": "submitted",
     "sync_status": "synced",
     "message": "Đã lưu trong hệ thống từ Google Sheet",
-    "received_at": "2026-10-21T15:31:00.038Z",
+    "received_at": "2026-10-21T17:00:57.482Z",
     "resource_id": "4ff7fbee-b4f6-4f8f-8840-97e945d309e4"
   },
   {
@@ -269,7 +332,7 @@
     "status": "submitted",
     "sync_status": "synced",
     "message": "Đã lưu trong hệ thống từ Google Sheet",
-    "received_at": "2026-10-21T15:30:59.836Z",
+    "received_at": "2026-10-21T17:00:57.254Z",
     "resource_id": "a6730da9-7e29-4de0-841f-5a7abfa2344a"
   },
   {
@@ -290,7 +353,7 @@
     "status": "submitted",
     "sync_status": "synced",
     "message": "Đã lưu trong hệ thống từ Google Sheet",
-    "received_at": "2026-10-21T15:30:59.629Z",
+    "received_at": "2026-10-21T17:00:57.006Z",
     "resource_id": "9ff42c6d-ceee-485c-83fa-7cc7365e73cf"
   },
   {
@@ -311,7 +374,7 @@
     "status": "submitted",
     "sync_status": "synced",
     "message": "Đã lưu trong hệ thống từ Google Sheet",
-    "received_at": "2026-10-21T15:30:59.431Z",
+    "received_at": "2026-10-21T17:00:56.779Z",
     "resource_id": "e52cc557-e757-4595-8542-f75216126aab"
   },
   {
@@ -332,7 +395,7 @@
     "status": "submitted",
     "sync_status": "synced",
     "message": "Đã lưu trong hệ thống từ Google Sheet",
-    "received_at": "2026-10-21T15:30:59.204Z",
+    "received_at": "2026-10-21T17:00:56.561Z",
     "resource_id": "80e7f257-03f6-4d4f-b21b-1977e479bf02"
   },
   {
@@ -353,7 +416,7 @@
     "status": "submitted",
     "sync_status": "synced",
     "message": "Đã lưu trong hệ thống từ Google Sheet",
-    "received_at": "2026-10-21T15:30:59.003Z",
+    "received_at": "2026-10-21T17:00:56.328Z",
     "resource_id": "47cacb3b-d818-4f5b-b5dc-573e9660599e"
   },
   {
@@ -374,7 +437,7 @@
     "status": "submitted",
     "sync_status": "synced",
     "message": "Đã lưu trong hệ thống từ Google Sheet",
-    "received_at": "2026-10-21T15:30:58.802Z",
+    "received_at": "2026-10-21T17:00:56.097Z",
     "resource_id": "78be1186-2240-409e-a5b1-e784f0876726"
   },
   {
@@ -395,7 +458,7 @@
     "status": "submitted",
     "sync_status": "synced",
     "message": "Đã lưu trong hệ thống từ Google Sheet",
-    "received_at": "2026-10-21T15:30:58.595Z",
+    "received_at": "2026-10-21T17:00:55.816Z",
     "resource_id": "0e6efbef-c42d-427d-a0cb-12d2fc1e52ce"
   },
   {
@@ -416,7 +479,7 @@
     "status": "submitted",
     "sync_status": "synced",
     "message": "Đã lưu trong hệ thống từ Google Sheet",
-    "received_at": "2026-10-21T15:30:58.383Z",
+    "received_at": "2026-10-21T17:00:55.574Z",
     "resource_id": "70bad383-f0b1-497d-889f-f171a03d112e"
   },
   {
@@ -437,7 +500,7 @@
     "status": "submitted",
     "sync_status": "synced",
     "message": "Đã lưu trong hệ thống từ Google Sheet",
-    "received_at": "2026-10-21T15:30:58.161Z",
+    "received_at": "2026-10-21T17:00:55.357Z",
     "resource_id": "04304de0-d2e5-47b8-84f6-c7d546050a91"
   },
   {
@@ -458,7 +521,7 @@
     "status": "submitted",
     "sync_status": "synced",
     "message": "Đã lưu trong hệ thống từ Google Sheet",
-    "received_at": "2026-10-21T15:30:57.957Z",
+    "received_at": "2026-10-21T17:00:55.141Z",
     "resource_id": "270fe2fd-cda0-4baa-b996-4f8883951af0"
   },
   {
@@ -479,7 +542,7 @@
     "status": "submitted",
     "sync_status": "synced",
     "message": "Đã lưu trong hệ thống từ Google Sheet",
-    "received_at": "2026-10-21T15:30:57.728Z",
+    "received_at": "2026-10-21T17:00:54.895Z",
     "resource_id": "3419a3a8-8535-415c-a203-8cc1b5f128e9"
   },
   {
@@ -500,7 +563,7 @@
     "status": "submitted",
     "sync_status": "synced",
     "message": "Đã lưu trong hệ thống từ Google Sheet",
-    "received_at": "2026-10-21T15:30:57.502Z",
+    "received_at": "2026-10-21T17:00:54.652Z",
     "resource_id": "7c050839-4e1a-4410-91f7-e70ee19acdd2"
   },
   {
@@ -521,7 +584,7 @@
     "status": "submitted",
     "sync_status": "synced",
     "message": "Đã lưu trong hệ thống từ Google Sheet",
-    "received_at": "2026-10-21T15:30:57.305Z",
+    "received_at": "2026-10-21T17:00:54.448Z",
     "resource_id": "20e47f47-6412-4961-b6ac-75d7e4689986"
   },
   {
@@ -542,7 +605,7 @@
     "status": "submitted",
     "sync_status": "synced",
     "message": "Đã lưu trong hệ thống từ Google Sheet",
-    "received_at": "2026-10-21T15:30:57.082Z",
+    "received_at": "2026-10-21T17:00:54.234Z",
     "resource_id": "b058152f-9355-424f-b2b6-5aa09661426a"
   },
   {
@@ -563,7 +626,7 @@
     "status": "submitted",
     "sync_status": "synced",
     "message": "Đã lưu trong hệ thống từ Google Sheet",
-    "received_at": "2026-10-21T15:30:56.874Z",
+    "received_at": "2026-10-21T17:00:53.982Z",
     "resource_id": "baf134b7-a101-4609-97bb-b5e37278127e"
   },
   {
@@ -584,7 +647,7 @@
     "status": "submitted",
     "sync_status": "synced",
     "message": "Đã lưu trong hệ thống từ Google Sheet",
-    "received_at": "2026-10-21T15:30:56.313Z",
+    "received_at": "2026-10-21T17:00:53.772Z",
     "resource_id": "58d779d5-79d7-4ff7-b5ab-509fab922cd7"
   },
   {
@@ -605,7 +668,7 @@
     "status": "submitted",
     "sync_status": "synced",
     "message": "Đã lưu trong hệ thống từ Google Sheet",
-    "received_at": "2026-10-21T15:30:56.109Z",
+    "received_at": "2026-10-21T17:00:53.539Z",
     "resource_id": "7c8f207f-b255-4dd0-95fc-766d623f149a"
   },
   {
@@ -626,7 +689,7 @@
     "status": "submitted",
     "sync_status": "synced",
     "message": "Đã lưu trong hệ thống từ Google Sheet",
-    "received_at": "2026-10-21T15:30:55.878Z",
+    "received_at": "2026-10-21T17:00:53.309Z",
     "resource_id": "6bd839d6-475d-48d7-9b26-4f029a77cb55"
   },
   {
@@ -647,7 +710,7 @@
     "status": "submitted",
     "sync_status": "synced",
     "message": "Đã lưu trong hệ thống từ Google Sheet",
-    "received_at": "2026-10-21T15:30:55.673Z",
+    "received_at": "2026-10-21T17:00:53.063Z",
     "resource_id": "0d0f810a-bb05-40ff-a5b7-4bb42f7768b2"
   },
   {
@@ -668,7 +731,7 @@
     "status": "submitted",
     "sync_status": "synced",
     "message": "Đã lưu trong hệ thống từ Google Sheet",
-    "received_at": "2026-10-21T15:30:55.472Z",
+    "received_at": "2026-10-21T17:00:52.839Z",
     "resource_id": "8879425d-c351-44f3-8168-48054ba7de47"
   },
   {
@@ -689,7 +752,7 @@
     "status": "submitted",
     "sync_status": "synced",
     "message": "Đã lưu trong hệ thống từ Google Sheet",
-    "received_at": "2026-10-21T15:30:55.271Z",
+    "received_at": "2026-10-21T17:00:52.628Z",
     "resource_id": "dfc0aa86-0900-4361-a9ae-1656be0d5e68"
   },
   {
@@ -710,7 +773,7 @@
     "status": "submitted",
     "sync_status": "synced",
     "message": "Đã lưu trong hệ thống từ Google Sheet",
-    "received_at": "2026-10-21T15:30:55.036Z",
+    "received_at": "2026-10-21T17:00:52.309Z",
     "resource_id": "725ada07-08aa-4763-b3b1-cec41e6fd534"
   },
   {
@@ -731,7 +794,7 @@
     "status": "submitted",
     "sync_status": "synced",
     "message": "Đã lưu trong hệ thống từ Google Sheet",
-    "received_at": "2026-10-21T15:30:54.814Z",
+    "received_at": "2026-10-21T17:00:52.062Z",
     "resource_id": "b1a8897f-565e-4b0b-a56e-2d6b028c94d4"
   },
   {
@@ -752,7 +815,7 @@
     "status": "submitted",
     "sync_status": "synced",
     "message": "Đã lưu trong hệ thống từ Google Sheet",
-    "received_at": "2026-10-21T15:30:54.515Z",
+    "received_at": "2026-10-21T17:00:51.796Z",
     "resource_id": "1be7d8b2-a014-49aa-9972-9a632f83deea"
   },
   {
@@ -773,7 +836,7 @@
     "status": "submitted",
     "sync_status": "synced",
     "message": "Đã lưu trong hệ thống từ Google Sheet",
-    "received_at": "2026-10-21T15:30:54.305Z",
+    "received_at": "2026-10-21T17:00:51.575Z",
     "resource_id": "5dadff3a-1509-4bc1-959e-dfff95787cbe"
   },
   {
@@ -794,7 +857,7 @@
     "status": "submitted",
     "sync_status": "synced",
     "message": "Đã lưu trong hệ thống từ Google Sheet",
-    "received_at": "2026-10-21T15:30:54.079Z",
+    "received_at": "2026-10-21T17:00:51.334Z",
     "resource_id": "50e236d8-60ef-47ab-9fbf-371ac97dd06c"
   },
   {
@@ -815,7 +878,7 @@
     "status": "submitted",
     "sync_status": "synced",
     "message": "Đã lưu trong hệ thống từ Google Sheet",
-    "received_at": "2026-10-21T15:30:53.879Z",
+    "received_at": "2026-10-21T17:00:51.086Z",
     "resource_id": "289487ba-377a-4539-94ed-92ef52445660"
   },
   {
@@ -836,7 +899,7 @@
     "status": "submitted",
     "sync_status": "synced",
     "message": "Đã lưu trong hệ thống từ Google Sheet",
-    "received_at": "2026-10-21T15:30:53.658Z",
+    "received_at": "2026-10-21T17:00:50.802Z",
     "resource_id": "0413162e-2465-422c-9f0e-fc845a38324d"
   },
   {
@@ -857,7 +920,7 @@
     "status": "submitted",
     "sync_status": "synced",
     "message": "Đã lưu trong hệ thống từ Google Sheet",
-    "received_at": "2026-10-21T15:30:53.023Z",
+    "received_at": "2026-10-21T17:00:50.492Z",
     "resource_id": "2a7da979-4e28-4743-9fd9-cde77181151e"
   },
   {
@@ -899,7 +962,7 @@
     "status": "submitted",
     "sync_status": "synced",
     "message": "Đã lưu trong hệ thống từ Google Sheet",
-    "received_at": "2026-10-21T15:30:52.808Z",
+    "received_at": "2026-10-21T17:00:50.269Z",
     "resource_id": "f3ce84fe-ef97-40df-9907-e2a33699d02d"
   },
   {

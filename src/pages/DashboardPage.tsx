@@ -158,8 +158,29 @@ export function DashboardPage() {
   };
 
   const handleNavigateToResources = (statusFilter?: string) => {
+    if (statusFilter === 'my') {
+      window.location.hash = '#/resources/my';
+      return;
+    }
+    if (statusFilter === 'pending') {
+      if (
+        profile?.role === 'SCHOOL_ADMIN' ||
+        profile?.role === 'VICE_PRINCIPAL' ||
+        profile?.role === 'SUBJECT_LEADER' ||
+        profile?.role === 'VICE_SUBJECT_LEADER'
+      ) {
+        window.location.hash = '#/approval';
+      } else {
+        window.location.hash = '#/resources/my';
+      }
+      return;
+    }
     if (statusFilter && statusFilter !== 'all') {
-      window.location.hash = `#/resources?status=${statusFilter}`;
+      if (statusFilter.includes(',')) {
+        window.location.hash = `#/resources?statuses=${encodeURIComponent(statusFilter)}`;
+      } else {
+        window.location.hash = `#/resources?status=${encodeURIComponent(statusFilter)}`;
+      }
     } else {
       window.location.hash = '#/resources';
     }

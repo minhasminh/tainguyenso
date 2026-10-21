@@ -60,7 +60,7 @@ export function KPIGrid({ kpis, profile, onNavigateToResources }: KPIGridProps) 
           </div>
         </div>
 
-        {/* 2. Tài nguyên của tôi / Khối lượng của tổ */}
+        {/* 2. Tài nguyên của tôi */}
         <div
           onClick={() => onNavigateToResources('my')}
           className="group relative bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs card-hover cursor-pointer flex flex-col justify-between"
@@ -68,7 +68,7 @@ export function KPIGrid({ kpis, profile, onNavigateToResources }: KPIGridProps) 
           <div>
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                {isTeacher ? 'Đã khởi tạo' : 'Tài nguyên của tôi'}
+                Tài nguyên của tôi
               </span>
               <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:scale-105 transition-transform shadow-2xs">
                 <FolderOpen className="w-5 h-5" />
@@ -76,10 +76,10 @@ export function KPIGrid({ kpis, profile, onNavigateToResources }: KPIGridProps) 
             </div>
             <div className="mt-2">
               <div className="text-3xl font-extrabold text-slate-900 tracking-tight">
-                {isTeacher ? kpis.total : (kpis.draft + kpis.pendingSubjectLeader + kpis.approved)}
+                {kpis.myTotal ?? (isTeacher ? kpis.total : 0)}
               </div>
               <p className="text-xs text-slate-500 mt-1">
-                Kế hoạch bài dạy & bài giảng của thầy/cô
+                {(kpis.myApproved ?? 0)} đã duyệt • {(kpis.myPending ?? 0)} chờ duyệt
               </p>
             </div>
           </div>
@@ -91,21 +91,13 @@ export function KPIGrid({ kpis, profile, onNavigateToResources }: KPIGridProps) 
 
         {/* 3. Đang chờ thẩm định / phê duyệt */}
         <div
-          onClick={() =>
-            onNavigateToResources(
-              isSchoolAdmin
-                ? 'pending_school_approval'
-                : isSubjectLeader
-                ? 'submitted'
-                : 'submitted,pending_school_approval'
-            )
-          }
+          onClick={() => onNavigateToResources('pending')}
           className="group relative bg-white rounded-2xl border border-amber-200/80 p-5 shadow-2xs card-hover cursor-pointer flex flex-col justify-between"
         >
           <div>
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-amber-700 uppercase tracking-wider">
-                {isSchoolAdmin ? 'Cần BGH duyệt' : isSubjectLeader ? 'Cần Tổ duyệt' : 'Đang chờ duyệt'}
+                {isSchoolAdmin ? 'Chờ BGH duyệt' : isSubjectLeader ? 'Cần Tổ duyệt' : 'Đang chờ duyệt'}
               </span>
               <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center group-hover:scale-105 transition-transform shadow-2xs">
                 <Clock className="w-5 h-5" />
@@ -113,15 +105,21 @@ export function KPIGrid({ kpis, profile, onNavigateToResources }: KPIGridProps) 
             </div>
             <div className="mt-2">
               <div className="text-3xl font-extrabold text-amber-800 tracking-tight">
-                {kpis.pendingSubjectLeader + kpis.pendingSchool}
+                {isTeacher
+                  ? (kpis.myPending ?? (kpis.pendingSubjectLeader + kpis.pendingSchool))
+                  : (kpis.pendingSubjectLeader + kpis.pendingSchool)}
               </div>
               <p className="text-xs text-slate-500 mt-1">
-                {kpis.pendingSubjectLeader} chờ Tổ • {kpis.pendingSchool} chờ BGH
+                {isTeacher
+                  ? `${kpis.myPending ?? 0} học liệu cá nhân đang chờ thẩm định`
+                  : `${kpis.pendingSubjectLeader} chờ Tổ • ${kpis.pendingSchool} chờ BGH`}
               </p>
             </div>
           </div>
           <div className="mt-4 pt-3 border-t border-amber-100 flex items-center justify-between text-xs text-amber-700 font-medium">
-            <span>Theo dõi tiến độ thẩm định</span>
+            <span>
+              {isSchoolAdmin || isSubjectLeader ? 'Mở trang thẩm định & duyệt' : 'Theo dõi tiến độ thẩm định'}
+            </span>
             <ArrowUpRight className="w-4 h-4 text-amber-500 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
           </div>
         </div>

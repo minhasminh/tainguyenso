@@ -25,6 +25,12 @@ import {
   GoogleFormSyncStats,
 } from '../../types';
 import { vietnameseSearchMatches, normalizeDepartmentName, getUserDepartmentIds } from '../../utils/formatters';
+
+export function normalizeAcademicYear(year?: string | null): string {
+  if (!year) return '';
+  return year.replace(/[\s\u2013\u2014-]/g, '').trim();
+}
+
 import {
   MASTER_DEPARTMENTS,
   MASTER_SUBJECTS,
@@ -520,7 +526,12 @@ export class MockDatabaseStore {
           this.googleFormConfig.sheet_id = '1gH6zehWNY4pWn9bEzslTBI5ROBzr8Q_Cpug-T5b-8BU';
         }
 
-        // Ensure every resource has a unique public_token
+        // Ensure every resource has a unique public_token & normalized school_year
+        for (const r of this.resources) {
+          if (r.school_year && normalizeAcademicYear(r.school_year) === '20262027') {
+            r.school_year = '2026–2027';
+          }
+        }
         this.ensureResourceTokens();
         return;
       }
@@ -2609,7 +2620,7 @@ export class MockDatabaseStore {
       subject_id: finalSubjectId,
       grade_id: finalGradeId,
       class_name: null,
-      school_year: payload.academic_year || '2026–2027',
+      school_year: (payload.academic_year && normalizeAcademicYear(payload.academic_year) === '20262027') ? '2026–2027' : (payload.academic_year || '2026–2027'),
       academic_year_id: 'ay-2026-2027',
       topic: cleanTopic || null,
       resource_type: matchedType,
@@ -2849,7 +2860,12 @@ export class MockDatabaseStore {
     if (params.statuses && params.statuses.length > 0) {
       list = list.filter((r) => params.statuses!.includes(r.status));
     } else if (params.status && params.status !== 'all') {
-      list = list.filter((r) => r.status === params.status);
+      if (params.status.includes(',')) {
+        const statusArr = params.status.split(',').map((s) => s.trim()).filter(Boolean);
+        list = list.filter((r) => statusArr.includes(r.status));
+      } else {
+        list = list.filter((r) => r.status === params.status);
+      }
     } else if (!params.only_approved) {
       // By default in Kho tài nguyên, exclude archived unless specifically requested
       list = list.filter((r) => r.status !== 'archived');
@@ -4397,24 +4413,18 @@ export class MockDatabaseStore {
     // 2. Apply Filters
     // 2.1 Academic Year
     if (filters.academicYear && filters.academicYear !== 'all') {
+      const targetNorm = normalizeAcademicYear(filters.academicYear);
       scoped = scoped.filter(
-        (r) => r.school_year === filters.academicYear || r.academic_year_id === filters.academicYear
+        (r) =>
+          r.school_year === filters.academicYear ||
+          r.academic_year_id === filters.academicYear ||
+          (r.school_year && normalizeAcademicYear(r.school_year) === targetNorm)
       );
     }
 
     // 2.2 Department Filter
-    if (role === 'SUBJECT_LEADER' || role === 'VICE_SUBJECT_LEADER' || role === 'TEACHER') {
-      if (userDepts.length > 0) {
-        scoped = scoped.filter((r) => r.department_id && userDepts.includes(r.department_id));
-      }
-    } else if (role === 'VICE_PRINCIPAL') {
-      if (filters.departmentId && filters.departmentId !== 'all') {
-        scoped = scoped.filter((r) => r.department_id === filters.departmentId);
-      } else if (userDepts.length > 0) {
-        scoped = scoped.filter((r) => r.department_id && userDepts.includes(r.department_id));
-      }
-    } else if (filters.departmentId && filters.departmentId !== 'all') {
-      scoped = scoped.filter((r) => r.department_id === filters.departmentId);
+    if (filters.departmentId && filters.departmentId !== 'all') {
+      scoped = scoped.filter((r) => r.department_id === filters.departmentId || r.owner_id === callerProfile.id);
     }
 
     // 2.3 Teacher Filter
@@ -4514,6 +4524,22 @@ export class MockDatabaseStore {
       filtered.map((r) => r.department_id).filter(Boolean)
     ).size;
 
+    // Personal metrics (Tài nguyên của tôi)
+    const myResources = this.resources.filter((r) => {
+      if (r.owner_id === callerProfile.id || r.teacher_id === callerProfile.id) return true;
+      if (callerProfile.email) {
+        const cEmail = callerProfile.email.toLowerCase().trim();
+        const owner = this.profiles.find((p) => p.id === r.owner_id);
+        if (owner && owner.email && owner.email.toLowerCase().trim() === cEmail) return true;
+      }
+      return false;
+    });
+    const myTotal = myResources.length;
+    const myApproved = myResources.filter((r) => r.status === 'approved').length;
+    const myPending = myResources.filter(
+      (r) => r.status === 'submitted' || r.status === 'pending_school_approval' || r.status === 'subject_leader_approved'
+    ).length;
+
     const kpis = {
       total: filtered.length,
       approved: approvedCount,
@@ -4526,6 +4552,9 @@ export class MockDatabaseStore {
       approvedThisMonth,
       totalTeachers: uniqueTeachers,
       totalDepartments: uniqueDepartments,
+      myTotal,
+      myPending,
+      myApproved,
     };
 
     // 4. Status Distribution (Donut Chart) - Only include statuses with count > 0
@@ -4754,19 +4783,23 @@ export class MockDatabaseStore {
     // 12. Pending Actions ("CẦN XỬ LÝ" - Section 11 & 14)
     let pendingList: Resource[] = [];
     if (role === 'SCHOOL_ADMIN' || role === 'VICE_PRINCIPAL') {
-      // BGH: Prioritize resources pending school approval
-      pendingList = this.resources.filter(
+      // BGH: Prioritize resources pending school approval, then submitted resources
+      const bghPending = this.resources.filter(
         (r) => r.status === 'pending_school_approval' || r.status === 'subject_leader_approved'
       );
+      const submittedPending = this.resources.filter((r) => r.status === 'submitted');
+      pendingList = [...bghPending, ...submittedPending];
     } else if (role === 'SUBJECT_LEADER' || role === 'VICE_SUBJECT_LEADER') {
       // Subject Leader / Vice Leader: Prioritize submitted resources in their department
       pendingList = this.resources.filter(
-        (r) => r.status === 'submitted' && r.department_id === callerProfile.department_id
+        (r) => r.status === 'submitted' && (r.department_id && userDepts.includes(r.department_id))
       );
     } else if (role === 'TEACHER') {
-      // Teacher: Prioritize resources requiring revision or drafted
+      // Teacher: Prioritize resources waiting for review, requiring revision or drafted
       pendingList = this.resources.filter(
-        (r) => r.owner_id === callerProfile.id && (r.status === 'revision_required' || r.status === 'draft')
+        (r) =>
+          (r.owner_id === callerProfile.id || r.teacher_id === callerProfile.id) &&
+          ['submitted', 'pending_school_approval', 'revision_required', 'draft'].includes(r.status)
       );
     } else {
       // ADMIN: Show all pending approvals

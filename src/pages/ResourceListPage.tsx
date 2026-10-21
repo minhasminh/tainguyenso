@@ -81,11 +81,22 @@ export function ResourceListPage() {
     const grds = p.get('grades') ? p.get('grades')!.split(',').filter(Boolean) : [];
     const rType = p.get('type') || p.get('resource_type') || 'all';
     const rTypes = p.get('types') ? p.get('types')!.split(',').filter(Boolean) : [];
-    const teacher = p.get('teacher') || p.get('owner_id') || 'all';
-    const status = (p.get('status') || 'all') as ResourceStatus | 'all';
-    const statuses = p.get('statuses')
-      ? (p.get('statuses')!.split(',').filter(Boolean) as ResourceStatus[])
+    let teacher = p.get('teacher') || p.get('owner_id') || 'all';
+    const rawStatus = (p.get('status') || 'all').trim();
+    let status: ResourceStatus | 'all' = 'all';
+    let statuses: ResourceStatus[] = p.get('statuses')
+      ? (p.get('statuses')!.split(',').map((s) => s.trim()).filter(Boolean) as ResourceStatus[])
       : [];
+
+    if (rawStatus === 'my' && profile?.id) {
+      teacher = profile.id;
+      status = 'all';
+    } else if (rawStatus.includes(',')) {
+      statuses = rawStatus.split(',').map((s) => s.trim()).filter(Boolean) as ResourceStatus[];
+      status = 'all';
+    } else {
+      status = rawStatus as ResourceStatus | 'all';
+    }
     const year = p.get('year') || p.get('school_year') || 'all';
     const dateType = (p.get('date_type') as any) || 'updated_at';
     const dateFrom = p.get('date_from') || '';

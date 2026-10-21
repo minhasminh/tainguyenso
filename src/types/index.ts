@@ -395,6 +395,9 @@ export interface DashboardKPIData {
   approvedThisMonth: number;
   totalTeachers?: number;
   totalDepartments?: number;
+  myTotal?: number;
+  myPending?: number;
+  myApproved?: number;
 }
 
 export interface DashboardStatusDistributionItem {

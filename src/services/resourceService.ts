@@ -62,7 +62,12 @@ export const resourceService = {
           `, { count: 'exact' });
 
         if (params.status && params.status !== 'all') {
-          query = query.eq('status', params.status);
+          if (params.status.includes(',')) {
+            const list = params.status.split(',').map((s) => s.trim()).filter(Boolean);
+            query = query.in('status', list);
+          } else {
+            query = query.eq('status', params.status);
+          }
         } else if (params.statuses && params.statuses.length > 0) {
           query = query.in('status', params.statuses);
         } else {

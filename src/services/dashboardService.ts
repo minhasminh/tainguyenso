@@ -47,7 +47,10 @@ export const dashboardService = {
           .neq('status', 'archived');
 
         if (filters.academicYear && filters.academicYear !== 'all') {
-          resQuery = resQuery.eq('school_year', filters.academicYear);
+          const ayVal = filters.academicYear;
+          const alt1 = ayVal.replace(/–/g, '-');
+          const alt2 = ayVal.replace(/–/g, ' - ');
+          resQuery = resQuery.in('school_year', [ayVal, alt1, alt2, '2026–2027', '2026-2027', '2026 - 2027']);
         }
 
         const [
@@ -90,6 +93,21 @@ export const dashboardService = {
           const currentYear = now.getFullYear();
           const currentMonth = now.getMonth();
 
+          // Personal metrics (Tài nguyên của tôi)
+          const myResources = resources.filter((r) => {
+            if (r.owner_id === callerProfile.id || r.teacher_id === callerProfile.id) return true;
+            if (callerProfile.email) {
+              const cEmail = callerProfile.email.toLowerCase().trim();
+              if (r.owner && r.owner.email && r.owner.email.toLowerCase().trim() === cEmail) return true;
+            }
+            return false;
+          });
+          const myTotal = myResources.length;
+          const myApproved = myResources.filter((r) => r.status === 'approved').length;
+          const myPending = myResources.filter(
+            (r) => r.status === 'submitted' || r.status === 'pending_school_approval' || r.status === 'subject_leader_approved'
+          ).length;
+
           // Calculate KPIs
           const kpis = {
             total: scopedResources.length,
@@ -113,6 +131,9 @@ export const dashboardService = {
               const d = new Date(r.approved_at);
               return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
             }).length,
+            myTotal,
+            myPending,
+            myApproved,
           };
 
           // Department Stats
