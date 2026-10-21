@@ -504,7 +504,7 @@ function handleRecent(req: Request, res: Response) {
   }
   res.json({
     success: true,
-    data: list.slice(0, 50),
+    data: list.slice(0, 500),
     total: list.length,
   });
 }
@@ -1086,7 +1086,32 @@ async function syncGoogleSheetSubmissions(sheetId: string = '1gH6zehWNY4pWn9bEzs
       }
     } else {
       if (submissionIdsSet.has(submissionId)) {
-        duplicateItems.push({ submission_id: submissionId, title });
+        const existing = recentSyncSubmissions.find((s) => s.submission_id === submissionId);
+        duplicateItems.push({ submission_id: submissionId, title, resource_id: existing?.resource_id });
+        if (!existing) {
+          const dupRecord: SyncedSubmissionRecord = {
+            id: `sheet_dup_${submissionId}`,
+            submission_id: submissionId,
+            teacher_email: email,
+            teacher_name: teacherName,
+            title: title,
+            description: description + (className ? ` (Lớp: ${className})` : ''),
+            resource_type: resourceType,
+            department: department,
+            subject: subject,
+            grade: grade,
+            topic: topic,
+            academic_year: academicYear,
+            resource_url: uploadUrl || (driveFileId ? `https://drive.google.com/file/d/${driveFileId}/view` : ''),
+            drive_file_id: driveFileId,
+            status: 'submitted',
+            sync_status: 'synced',
+            message: 'Đã lưu trong hệ thống từ Google Sheet',
+            received_at: new Date().toISOString(),
+            resource_id: `res_sheet_dup_${i}`,
+          };
+          recentSyncSubmissions.push(dupRecord);
+        }
         continue;
       }
     }
@@ -1138,6 +1163,7 @@ async function syncGoogleSheetSubmissions(sheetId: string = '1gH6zehWNY4pWn9bEzs
     skipped_count: skippedItems.length,
     synced_items: syncedItems,
     duplicates: duplicateItems,
+    all_items: recentSyncSubmissions,
   };
 }
 

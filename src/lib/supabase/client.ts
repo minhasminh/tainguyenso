@@ -4,7 +4,7 @@ import {
   isValidSupabaseKey,
   DEFAULT_SUPABASE_URL,
   DEFAULT_SUPABASE_ANON_KEY,
-} from '../supabase';
+} from '../supabase.ts';
 
 export { isValidSupabaseUrl, isValidSupabaseKey, DEFAULT_SUPABASE_URL, DEFAULT_SUPABASE_ANON_KEY };
 

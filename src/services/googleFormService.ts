@@ -276,7 +276,7 @@ export const googleFormService = {
             for (const item of json.data) {
               if (item.sync_status === 'synced' && item.submission_id) {
                 // Check if already in store
-                const exists = store.getResources(callerProfile, { pageSize: 9999 }).data.some(
+                const exists = store.getRawResources().some(
                   (r) => r.google_form_submission_id === item.submission_id
                 );
                 if (!exists) {
@@ -432,9 +432,13 @@ export const googleFormService = {
 
           if (response.ok) {
             const json = await response.json();
-            if (json.success && Array.isArray(json.synced_items)) {
+            const itemsToSync = (Array.isArray(json.all_items) && json.all_items.length > 0)
+              ? json.all_items
+              : (Array.isArray(json.synced_items) ? json.synced_items : []);
+
+            if (json.success && itemsToSync.length > 0) {
               // Sync each item into local store
-              for (const item of json.synced_items) {
+              for (const item of itemsToSync) {
                 store.syncGoogleFormSubmission({
                   submission_id: item.submission_id,
                   submitted_at: item.received_at,
@@ -453,14 +457,18 @@ export const googleFormService = {
                 });
               }
 
+              const totalRows = json.total_rows || itemsToSync.length;
+              const syncedCount = json.synced_count !== undefined ? json.synced_count : itemsToSync.length;
+              const duplicateCount = json.duplicate_count || (itemsToSync.length - syncedCount);
+
               const backendRes = {
                 success: true,
-                totalRows: json.total_rows || 0,
-                syncedCount: json.synced_count || 0,
-                duplicateCount: json.duplicate_count || 0,
+                totalRows,
+                syncedCount,
+                duplicateCount: Math.max(0, duplicateCount),
                 skippedCount: json.skipped_count || 0,
-                message: `Đồng bộ thành công ${json.synced_count} tài nguyên mới (${json.duplicate_count} tài nguyên đã tồn tại trước đó).`,
-                syncedItems: json.synced_items,
+                message: `Đồng bộ thành công ${itemsToSync.length} tài nguyên từ Google Sheet (${syncedCount} mới, ${Math.max(0, duplicateCount)} đã ghi nhận).`,
+                syncedItems: itemsToSync,
               };
               lastSyncFromSheetTime = Date.now();
               lastSyncFromSheetResult = backendRes;
@@ -577,9 +585,13 @@ export const googleFormService = {
         if (result.status === 'synced') {
           syncedCount++;
           if (result.resource_id) {
-            const syncedRes = store.getResourceById(result.resource_id, callerProfile || null);
-            if (syncedRes) {
-              realtimeService.broadcastLocalChange('resources', 'INSERT', syncedRes);
+            try {
+              const syncedRes = store.getRawResourceById(result.resource_id);
+              if (syncedRes) {
+                realtimeService.broadcastLocalChange('resources', 'INSERT', syncedRes);
+              }
+            } catch (broadcastErr) {
+              console.warn('Broadcast local change skipped:', broadcastErr);
             }
           }
         } else if (result.status === 'duplicate') duplicateCount++;

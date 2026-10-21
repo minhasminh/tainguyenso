@@ -332,7 +332,7 @@ export function ResourceListPage() {
     setFilters((prev) => ({
       ...prev,
       ...partial,
-      page: 1, // Reset to page 1 on filter change
+      page: partial.page !== undefined ? partial.page : 1, // Keep specified page when navigating pages, reset to 1 when changing filters
     }));
   };
 
@@ -716,8 +716,15 @@ export function ResourceListPage() {
             totalPages={totalPages}
             totalItems={totalCount}
             pageSize={filters.pageSize || 20}
-            onPageChange={(page) => handleUpdateFilter({ page })}
-            onPageSizeChange={(size) => handleUpdateFilter({ pageSize: size, page: 1 })}
+            onPageChange={(page) => {
+              handleUpdateFilter({ page });
+              setSelectedIds([]);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            onPageSizeChange={(size) => {
+              handleUpdateFilter({ pageSize: size, page: 1 });
+              setSelectedIds([]);
+            }}
           />
         </div>
       )}

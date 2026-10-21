@@ -43,7 +43,7 @@ export function ApprovalPage() {
     setLoading(true);
     try {
       const [res, deptList] = await Promise.all([
-        resourceService.getResources(profile, {}),
+        resourceService.getResources(profile, { pageSize: 9999 }),
         departmentService.getDepartments(profile).catch(() => []),
       ]);
       setResources(res.data);

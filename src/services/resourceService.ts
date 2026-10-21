@@ -144,14 +144,14 @@ export const resourceService = {
 
         // Pagination
         const page = params.page || 1;
-        const pageSize = params.pageSize || 10;
+        const pageSize = params.pageSize || 20;
         const from = (page - 1) * pageSize;
         const to = from + pageSize - 1;
         query = query.range(from, to);
 
         const { data, count, error } = await query;
         if (!error && data) {
-          const total = count || data.length;
+          const total = typeof count === 'number' ? count : (data?.length || 0);
           // Sync with local mock store
           for (const item of data) {
             MockDatabaseStore.getInstance().syncResourceFromLive(item as Resource);

@@ -299,6 +299,14 @@ export class MockDatabaseStore {
     return MockDatabaseStore.instance;
   }
 
+  public getRawResources(): Resource[] {
+    return this.resources;
+  }
+
+  public getRawResourceById(id: string): Resource | undefined {
+    return this.resources.find((r) => r.id === id);
+  }
+
   private loadFromStorage() {
     try {
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
@@ -2441,50 +2449,57 @@ export class MockDatabaseStore {
       return { success: false, status: 'invalid', message: 'Email giáo viên không hợp lệ.', log_id: logId };
     }
 
-    // 5. Look up Teacher in profiles
+    // 5. Look up Teacher in profiles or auto-provision from Google Form
     let teacher = this.profiles.find((p) => p.email && p.email.toLowerCase() === cleanEmail);
     if (!teacher && (cleanEmail === 'ducminh1973@gmail.com' || cleanEmail.includes('ducminh') || cleanEmail.includes('vuducminh'))) {
       teacher = this.profiles.find((p) => p.id === 'a5555555-5555-5555-5555-555555555555' || p.id === 'u5555555-5555-5555-5555-555555555555' || p.email === 'giaovien.tin@thcs.edu.vn');
     }
-    if (!teacher) {
-      // If no teacher found, fallback to Thầy Vũ Đức Minh (Tin học) or first active teacher
-      const fallbackTeacher = this.profiles.find((p) => p.id === 'a5555555-5555-5555-5555-555555555555') || this.profiles.find((p) => p.id === 'u5555555-5555-5555-5555-555555555555') || this.profiles.find((p) => p.role === 'TEACHER');
-      if (cleanEmail === '' || cleanEmail === 'ducminh1973@gmail.com') {
-        teacher = fallbackTeacher;
-      }
-    }
 
     if (!teacher) {
-      const logItem: ResourceSyncLog = {
-        id: logId,
-        submission_id: cleanSubmissionId,
-        resource_id: null,
-        status: 'invalid',
-        error_message: `Email giáo viên "${cleanEmail}" chưa được đăng ký trong hệ thống. Vui lòng liên hệ Quản trị viên để được cấp tài khoản.`,
-        teacher_email: cleanEmail,
-        resource_title: cleanTitle,
-        source: 'google_form',
+      // Tự động khởi tạo hồ sơ giáo viên từ thông tin gửi biểu mẫu Google Form
+      const derivedName = (payload.teacher_name || '').trim() || cleanEmail.split('@')[0];
+      const newTeacherId = 'u_t_' + Math.random().toString(36).substring(2, 8) + '_' + Date.now().toString(36);
+
+      // Xác định Tổ chuyên môn phù hợp
+      let autoDeptId = 'd1111111-1111-1111-1111-111111111111'; // Mặc định Tổ KHTN
+      if (payload.department) {
+        const normInput = normalizeDepartmentName(payload.department);
+        const found = this.departments.find(
+          (d) =>
+            normalizeDepartmentName(d.name) === normInput ||
+            d.name.toLowerCase().includes(normInput) ||
+            normInput.includes(d.name.toLowerCase())
+        );
+        if (found) autoDeptId = found.id;
+      }
+
+      teacher = {
+        id: newTeacherId,
+        full_name: derivedName,
+        email: cleanEmail,
+        role: 'TEACHER',
+        status: 'active',
+        department_id: autoDeptId,
+        department_ids: [autoDeptId],
+        subject_id: null,
+        avatar_url: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(derivedName)}`,
         created_at: nowIso,
-        processed_at: nowIso,
+        updated_at: nowIso,
       };
-      this.resourceSyncLogs.unshift(logItem);
+
+      this.profiles.push(teacher);
+      this.userPasswords[teacher.id] = 'giaovien123';
+      this.userPasswords[cleanEmail] = 'giaovien123';
       this.saveToStorage();
 
       this.logActivity(
         'system',
-        'SYSTEM_NOTIFICATION' as any,
-        'google_form_sync',
-        null,
-        { email: cleanEmail, submission_id: cleanSubmissionId },
-        `Đồng bộ Google Form thất bại: Email ${cleanEmail} chưa có tài khoản trong hệ thống.`
+        'USER_CREATE',
+        'profile',
+        teacher.id,
+        { email: cleanEmail, full_name: derivedName, role: 'TEACHER' },
+        `Tự động nhận diện & khởi tạo tài khoản giáo viên ${derivedName} (${cleanEmail}) từ phản hồi Google Form`
       );
-
-      return {
-        success: false,
-        status: 'invalid',
-        message: `Email "${cleanEmail}" chưa được đăng ký trong hệ thống. Vui lòng liên hệ Quản trị viên.`,
-        log_id: logId,
-      };
     }
 
     // 6. Validate & Sanitize Resource URL
