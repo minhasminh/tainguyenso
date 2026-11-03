@@ -4,7 +4,7 @@ import { Resource, ResourceFilterParams, Profile } from '../types';
 import { realtimeService } from './realtimeService';
 import { auditLogService } from './auditLogService';
 import { notificationService } from './notificationService';
-import { getUserDepartmentIds } from '../utils/formatters';
+import { getUserDepartmentIds, isResourceInDepartments } from '../utils/formatters';
 
 function isMissingTableError(err: any): boolean {
   if (!err) return false;
@@ -866,7 +866,7 @@ export const resourceService = {
 
       if (callerProfile.role === 'VICE_PRINCIPAL') {
         const userDepts = getUserDepartmentIds(callerProfile);
-        if (userDepts.length > 0 && (!currentRes?.department_id || !userDepts.includes(currentRes.department_id))) {
+        if (!isResourceInDepartments(currentRes, userDepts)) {
           throw new Error('RLS: Phó hiệu trưởng chỉ có thẩm quyền phê duyệt sản phẩm thuộc các tổ chuyên môn được phân công phụ trách.');
         }
       }
@@ -937,7 +937,7 @@ export const resourceService = {
 
       if (callerProfile.role === 'VICE_PRINCIPAL') {
         const userDepts = getUserDepartmentIds(callerProfile);
-        if (userDepts.length > 0 && (!currentRes?.department_id || !userDepts.includes(currentRes.department_id))) {
+        if (!isResourceInDepartments(currentRes, userDepts)) {
           throw new Error('RLS: Phó hiệu trưởng chỉ có thẩm quyền yêu cầu chỉnh sửa sản phẩm thuộc các tổ chuyên môn được phân công phụ trách.');
         }
       }
@@ -1006,7 +1006,7 @@ export const resourceService = {
 
       if (callerProfile.role === 'VICE_PRINCIPAL') {
         const userDepts = getUserDepartmentIds(callerProfile);
-        if (userDepts.length > 0 && (!currentRes?.department_id || !userDepts.includes(currentRes.department_id))) {
+        if (!isResourceInDepartments(currentRes, userDepts)) {
           throw new Error('RLS: Phó hiệu trưởng chỉ có thẩm quyền từ chối phê duyệt sản phẩm thuộc các tổ chuyên môn được phân công phụ trách.');
         }
       }

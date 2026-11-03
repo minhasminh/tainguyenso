@@ -24,11 +24,26 @@ import {
   ResourceSyncLog,
   GoogleFormSyncStats,
 } from '../../types';
-import { vietnameseSearchMatches, normalizeDepartmentName, getUserDepartmentIds } from '../../utils/formatters';
+import {
+  vietnameseSearchMatches,
+  normalizeDepartmentName,
+  getUserDepartmentIds,
+  isResourceInDepartments,
+} from '../../utils/formatters';
 
 export function normalizeAcademicYear(year?: string | null): string {
   if (!year) return '';
   return year.replace(/[\s\u2013\u2014-]/g, '').trim();
+}
+
+export function normalizeResourceTitle(title?: string | null): string {
+  if (!title) return '';
+  return title
+    .toLowerCase()
+    .normalize('NFC')
+    .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()\[\]"'’“”]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 import {
@@ -532,6 +547,8 @@ export class MockDatabaseStore {
             r.school_year = '2026–2027';
           }
         }
+        // Deduplicate any duplicate resources loaded from storage
+        this.deduplicateResources();
         this.ensureResourceTokens();
         return;
       }
@@ -1258,13 +1275,22 @@ export class MockDatabaseStore {
     const idx = this.profiles.findIndex(
       (p) => p.id === liveProfile.id || (liveProfile.email && p.email?.toLowerCase() === liveProfile.email.toLowerCase())
     );
+    const existingDeptIds = idx >= 0 ? this.profiles[idx].department_ids : undefined;
+    const resolvedDeptIds =
+      (Array.isArray(liveProfile.department_ids) && liveProfile.department_ids.length > 0)
+        ? liveProfile.department_ids
+        : (existingDeptIds && existingDeptIds.length > 0)
+        ? existingDeptIds
+        : getUserDepartmentIds(liveProfile);
+
     const normalized: Profile = {
       ...liveProfile,
+      department_ids: resolvedDeptIds,
       status: liveProfile.status || 'active',
       role: liveProfile.role || 'TEACHER',
     };
     if (idx >= 0) {
-      this.profiles[idx] = { ...this.profiles[idx], ...normalized };
+      this.profiles[idx] = { ...this.profiles[idx], ...normalized, department_ids: resolvedDeptIds };
     } else {
       this.profiles.unshift(normalized);
     }
@@ -2392,35 +2418,7 @@ export class MockDatabaseStore {
 
     const cleanSubmissionId = payload.submission_id.trim();
 
-    // 2. IDEMPOTENCY CHECK: Check if submission already synced
-    const existingResource = this.resources.find(
-      (r) => r.google_form_submission_id === cleanSubmissionId
-    );
-    if (existingResource) {
-      const logItem: ResourceSyncLog = {
-        id: logId,
-        submission_id: cleanSubmissionId,
-        resource_id: existingResource.id,
-        status: 'duplicate',
-        error_message: null,
-        teacher_email: payload.teacher_email || null,
-        resource_title: existingResource.title,
-        source: 'google_form',
-        created_at: nowIso,
-        processed_at: nowIso,
-      };
-      this.resourceSyncLogs.unshift(logItem);
-      this.saveToStorage();
-      return {
-        success: true,
-        status: 'duplicate',
-        message: 'Tài nguyên với mã gửi này đã được đồng bộ trước đó (Idempotent).',
-        resource_id: existingResource.id,
-        log_id: logId,
-      };
-    }
-
-    // 3. Validate Title
+    // 2. Validate Title
     const cleanTitle = (payload.title || '').trim().replace(/<[^>]*>/g, '');
     if (!cleanTitle) {
       const logItem: ResourceSyncLog = {
@@ -2440,7 +2438,7 @@ export class MockDatabaseStore {
       return { success: false, status: 'invalid', message: 'Tên tài nguyên không được để trống.', log_id: logId };
     }
 
-    // 4. Validate Teacher Email
+    // 3. Validate Teacher Email
     const cleanEmail = (payload.teacher_email || '').trim().toLowerCase();
     if (!cleanEmail || !cleanEmail.includes('@')) {
       const logItem: ResourceSyncLog = {
@@ -2458,6 +2456,78 @@ export class MockDatabaseStore {
       this.resourceSyncLogs.unshift(logItem);
       this.saveToStorage();
       return { success: false, status: 'invalid', message: 'Email giáo viên không hợp lệ.', log_id: logId };
+    }
+
+    // 4. IDEMPOTENCY & MULTI-FACTOR DEDUPLICATION CHECK
+    // Check if the resource already exists in the database
+    const cleanDriveId = (payload.drive_file_id || '').trim();
+    let urlDriveId = '';
+    if (payload.resource_url) {
+      const match = payload.resource_url.match(/[?&]id=([a-zA-Z0-9_-]+)/) || payload.resource_url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+      if (match) urlDriveId = match[1];
+    }
+    const finalDriveId = cleanDriveId || urlDriveId;
+    const normIncomingTitle = normalizeResourceTitle(cleanTitle);
+
+    const existingResource = this.resources.find((r) => {
+      // Check A: Same submission ID
+      if (r.google_form_submission_id && r.google_form_submission_id === cleanSubmissionId) {
+        return true;
+      }
+      // Check B: Same non-empty Google Drive File ID
+      if (finalDriveId && r.google_drive_file_id && r.google_drive_file_id === finalDriveId) {
+        return true;
+      }
+      // Check C: Same Normalized Title + Teacher match
+      if (normIncomingTitle && normIncomingTitle.length >= 3 && r.title) {
+        const rNormTitle = normalizeResourceTitle(r.title);
+        if (rNormTitle === normIncomingTitle) {
+          const owner = this.profiles.find((p) => p.id === r.owner_id || p.id === r.teacher_id);
+          const ownerEmail = (owner?.email || r.source_metadata?.teacher_email || '').toLowerCase().trim();
+          if (cleanEmail && (ownerEmail === cleanEmail || cleanEmail.includes(ownerEmail) || ownerEmail.includes(cleanEmail))) {
+            return true;
+          }
+        }
+      }
+      return false;
+    });
+
+    if (existingResource) {
+      // Enrich existing resource with missing metadata from new submission if available
+      if (!existingResource.google_drive_file_id && finalDriveId) {
+        existingResource.google_drive_file_id = finalDriveId;
+      }
+      if (!existingResource.topic && payload.topic) {
+        existingResource.topic = payload.topic.trim();
+      }
+      if ((!existingResource.description || existingResource.description.length < 10) && payload.description) {
+        existingResource.description = payload.description.trim();
+      }
+      if (!existingResource.google_form_submission_id) {
+        existingResource.google_form_submission_id = cleanSubmissionId;
+      }
+
+      const logItem: ResourceSyncLog = {
+        id: logId,
+        submission_id: cleanSubmissionId,
+        resource_id: existingResource.id,
+        status: 'duplicate',
+        error_message: null,
+        teacher_email: cleanEmail || null,
+        resource_title: existingResource.title,
+        source: 'google_form',
+        created_at: nowIso,
+        processed_at: nowIso,
+      };
+      this.resourceSyncLogs.unshift(logItem);
+      this.saveToStorage();
+      return {
+        success: true,
+        status: 'duplicate',
+        message: `Tài nguyên "${existingResource.title}" đã có trong hệ thống (Đã loại bỏ trùng lặp).`,
+        resource_id: existingResource.id,
+        log_id: logId,
+      };
     }
 
     // 5. Look up Teacher in profiles or auto-provision from Google Form
@@ -2773,6 +2843,189 @@ export class MockDatabaseStore {
     return { success: res.success, message: res.message, resource_id: res.resource_id };
   }
 
+  /**
+   * Deduplicate resources across the entire database:
+   * Finds duplicates by:
+   * 1. Same Google Drive File ID (non-empty)
+   * 2. Same Google Form Submission ID (non-empty)
+   * 3. Same Normalized Title + Teacher (owner_id or email)
+   *
+   * For each group of duplicates:
+   * - Retains the BEST canonical resource (Approved > Under review > Draft; richer metadata; earliest created)
+   * - Prunes duplicate records from this.resources
+   * - Updates references in resourceSyncLogs, notifications, approvalHistory to point to keptId
+   */
+  public deduplicateResources(callerProfile?: Profile | null): {
+    success: boolean;
+    totalBefore: number;
+    removedCount: number;
+    remainingCount: number;
+    duplicateGroupsCount: number;
+    details: Array<{
+      title: string;
+      keptId: string;
+      removedIds: string[];
+      reason: string;
+    }>;
+  } {
+    const totalBefore = this.resources.length;
+    const visited = new Set<string>();
+    const duplicateGroups: Resource[][] = [];
+
+    const getOwnerEmail = (r: Resource): string => {
+      const p = this.profiles.find((prof) => prof.id === r.owner_id || prof.id === r.teacher_id);
+      return (p?.email || r.source_metadata?.teacher_email || '').toLowerCase().trim();
+    };
+
+    const statusScore: Record<string, number> = {
+      approved: 100,
+      pending_school_approval: 80,
+      subject_leader_approved: 75,
+      submitted: 60,
+      revision_required: 40,
+      draft: 20,
+      rejected: 10,
+      rejected_by_school: 10,
+      rejected_by_subject_leader: 10,
+      archived: 0,
+    };
+
+    for (let i = 0; i < this.resources.length; i++) {
+      const r1 = this.resources[i];
+      if (visited.has(r1.id)) continue;
+
+      const group: Resource[] = [r1];
+      visited.add(r1.id);
+
+      const r1DriveId = (r1.google_drive_file_id || '').trim();
+      const r1SubId = (r1.google_form_submission_id || '').trim();
+      const r1NormTitle = normalizeResourceTitle(r1.title);
+      const r1Email = getOwnerEmail(r1);
+
+      for (let j = i + 1; j < this.resources.length; j++) {
+        const r2 = this.resources[j];
+        if (visited.has(r2.id)) continue;
+
+        let isDup = false;
+
+        const r2DriveId = (r2.google_drive_file_id || '').trim();
+        const r2SubId = (r2.google_form_submission_id || '').trim();
+        const r2NormTitle = normalizeResourceTitle(r2.title);
+        const r2Email = getOwnerEmail(r2);
+
+        // Check 1: Same Drive File ID
+        if (r1DriveId && r2DriveId && r1DriveId === r2DriveId) {
+          isDup = true;
+        }
+        // Check 2: Same Google Form Submission ID
+        else if (r1SubId && r2SubId && r1SubId === r2SubId) {
+          isDup = true;
+        }
+        // Check 3: Same Normalized Title AND Same Teacher
+        else if (r1NormTitle && r2NormTitle && r1NormTitle === r2NormTitle && r1NormTitle.length >= 3) {
+          const sameOwnerId = (r1.owner_id && r1.owner_id === r2.owner_id) || (r1.teacher_id && r1.teacher_id === r2.teacher_id);
+          const sameEmail = r1Email && r2Email && (r1Email === r2Email || r1Email.includes(r2Email) || r2Email.includes(r1Email));
+          if (sameOwnerId || sameEmail) {
+            isDup = true;
+          }
+        }
+
+        if (isDup) {
+          visited.add(r2.id);
+          group.push(r2);
+        }
+      }
+
+      if (group.length > 1) {
+        duplicateGroups.push(group);
+      }
+    }
+
+    const removedIdsSet = new Set<string>();
+    const details: Array<{ title: string; keptId: string; removedIds: string[]; reason: string }> = [];
+
+    for (const group of duplicateGroups) {
+      // Sort to find best canonical resource
+      group.sort((a, b) => {
+        // 1. Status priority
+        const scoreA = statusScore[a.status] || 0;
+        const scoreB = statusScore[b.status] || 0;
+        if (scoreA !== scoreB) return scoreB - scoreA;
+
+        // 2. Completeness of metadata
+        const compA = (a.description?.length || 0) + (a.topic ? 20 : 0) + (a.google_drive_file_id ? 30 : 0) + (a.subject_id ? 10 : 0);
+        const compB = (b.description?.length || 0) + (b.topic ? 20 : 0) + (b.google_drive_file_id ? 30 : 0) + (b.subject_id ? 10 : 0);
+        if (compA !== compB) return compB - compA;
+
+        // 3. Earliest created_at (original entry)
+        const dateA = new Date(a.created_at || 0).getTime();
+        const dateB = new Date(b.created_at || 0).getTime();
+        return dateA - dateB;
+      });
+
+      const kept = group[0];
+      const removed = group.slice(1);
+      const groupRemovedIds = removed.map((r) => r.id);
+
+      groupRemovedIds.forEach((id) => removedIdsSet.add(id));
+
+      details.push({
+        title: kept.title,
+        keptId: kept.id,
+        removedIds: groupRemovedIds,
+        reason: `Trùng lặp: Giữ bản ghi chuẩn [${kept.id}] (Trạng thái: ${kept.status}), loại bỏ ${groupRemovedIds.length} bản sao chép.`,
+      });
+
+      // Enrich kept resource if removed resources had missing fields
+      for (const rem of removed) {
+        if (!kept.google_drive_file_id && rem.google_drive_file_id) kept.google_drive_file_id = rem.google_drive_file_id;
+        if (!kept.topic && rem.topic) kept.topic = rem.topic;
+        if ((!kept.description || kept.description.length < 10) && rem.description) kept.description = rem.description;
+        if (!kept.google_form_submission_id && rem.google_form_submission_id) kept.google_form_submission_id = rem.google_form_submission_id;
+      }
+
+      // Re-point foreign keys in resourceSyncLogs, notifications, approvalHistory
+      for (const log of this.resourceSyncLogs) {
+        if (log.resource_id && groupRemovedIds.includes(log.resource_id)) {
+          log.resource_id = kept.id;
+        }
+      }
+      for (const notif of this.notifications) {
+        if (notif.resource_id && groupRemovedIds.includes(notif.resource_id)) {
+          notif.resource_id = kept.id;
+        }
+      }
+      for (const hist of this.approvalHistory) {
+        if (hist.resource_id && groupRemovedIds.includes(hist.resource_id)) {
+          hist.resource_id = kept.id;
+        }
+      }
+    }
+
+    if (removedIdsSet.size > 0) {
+      this.resources = this.resources.filter((r) => !removedIdsSet.has(r.id));
+      this.saveToStorage();
+
+      this.logActivity(
+        callerProfile?.id || 'system',
+        'DELETE',
+        'resource',
+        'batch_deduplication',
+        { removedCount: removedIdsSet.size, remainingCount: this.resources.length },
+        `Tự động chuẩn hóa & loại bỏ ${removedIdsSet.size} tài nguyên trùng lặp trong hệ thống`
+      );
+    }
+
+    return {
+      success: true,
+      totalBefore,
+      removedCount: removedIdsSet.size,
+      remainingCount: this.resources.length,
+      duplicateGroupsCount: duplicateGroups.length,
+      details,
+    };
+  }
+
   // --- RESOURCES MODULE (VERSION 2) ---
 
   /**
@@ -2824,7 +3077,10 @@ export class MockDatabaseStore {
       if (callerProfile.role === 'VICE_PRINCIPAL') {
         const userDepts = getUserDepartmentIds(callerProfile);
         if (userDepts.length > 0) {
-          return r.owner_id === callerProfile.id || (r.department_id && userDepts.includes(r.department_id));
+          return (
+            r.owner_id === callerProfile.id ||
+            isResourceInDepartments(r, userDepts, this.profiles, this.departments)
+          );
         }
         return true;
       }
@@ -2832,7 +3088,7 @@ export class MockDatabaseStore {
       // 3. Các thành viên trong cùng tổ chỉ thấy tài nguyên trong tổ
       const userDepts = getUserDepartmentIds(callerProfile);
       const isOwner = r.owner_id === callerProfile.id;
-      const isInSameDept = Boolean(r.department_id && userDepts.includes(r.department_id));
+      const isInSameDept = isResourceInDepartments(r, userDepts, this.profiles, this.departments);
 
       if (isOwner) {
         return true;
@@ -3651,10 +3907,11 @@ export class MockDatabaseStore {
     const res = this.resources[index];
     const userDepts = getUserDepartmentIds(callerProfile);
     const isGlobal = callerProfile.role === 'ADMIN' || callerProfile.role === 'SCHOOL_ADMIN';
-    const isVP = callerProfile.role === 'VICE_PRINCIPAL' && (userDepts.length === 0 || (res.department_id && userDepts.includes(res.department_id)));
+    const isResourceMatch = isResourceInDepartments(res, userDepts, this.profiles, this.departments);
+    const isVP = callerProfile.role === 'VICE_PRINCIPAL' && isResourceMatch;
     const isLeaderInDept =
       (callerProfile.role === 'SUBJECT_LEADER' || callerProfile.role === 'VICE_SUBJECT_LEADER') &&
-      Boolean(res.department_id && userDepts.includes(res.department_id));
+      isResourceMatch;
 
     if (!isGlobal && !isVP && !isLeaderInDept) {
       throw new Error('Chỉ Tổ trưởng, Tổ phó của tổ chuyên môn này, Phó hiệu trưởng phụ trách hoặc Ban Giám hiệu mới có thẩm quyền thẩm định tài nguyên.');
@@ -3757,10 +4014,11 @@ export class MockDatabaseStore {
     const res = this.resources[index];
     const userDepts = getUserDepartmentIds(callerProfile);
     const isGlobal = callerProfile.role === 'ADMIN' || callerProfile.role === 'SCHOOL_ADMIN';
-    const isVP = callerProfile.role === 'VICE_PRINCIPAL' && (userDepts.length === 0 || (res.department_id && userDepts.includes(res.department_id)));
+    const isResourceMatch = isResourceInDepartments(res, userDepts, this.profiles, this.departments);
+    const isVP = callerProfile.role === 'VICE_PRINCIPAL' && isResourceMatch;
     const isLeaderInDept =
       (callerProfile.role === 'SUBJECT_LEADER' || callerProfile.role === 'VICE_SUBJECT_LEADER') &&
-      Boolean(res.department_id && userDepts.includes(res.department_id));
+      isResourceMatch;
 
     if (!isGlobal && !isVP && !isLeaderInDept) {
       throw new Error('Chỉ Tổ trưởng, Tổ phó của tổ chuyên môn này, Phó hiệu trưởng phụ trách hoặc Ban Giám hiệu mới có thẩm quyền yêu cầu chỉnh sửa.');
@@ -3831,10 +4089,11 @@ export class MockDatabaseStore {
     const res = this.resources[index];
     const userDepts = getUserDepartmentIds(callerProfile);
     const isGlobal = callerProfile.role === 'ADMIN' || callerProfile.role === 'SCHOOL_ADMIN';
-    const isVP = callerProfile.role === 'VICE_PRINCIPAL' && (userDepts.length === 0 || (res.department_id && userDepts.includes(res.department_id)));
+    const isResourceMatch = isResourceInDepartments(res, userDepts, this.profiles, this.departments);
+    const isVP = callerProfile.role === 'VICE_PRINCIPAL' && isResourceMatch;
     const isLeaderInDept =
       (callerProfile.role === 'SUBJECT_LEADER' || callerProfile.role === 'VICE_SUBJECT_LEADER') &&
-      Boolean(res.department_id && userDepts.includes(res.department_id));
+      isResourceMatch;
 
     if (!isGlobal && !isVP && !isLeaderInDept) {
       throw new Error('Chỉ Tổ trưởng, Tổ phó của tổ chuyên môn này, Phó hiệu trưởng phụ trách hoặc Ban Giám hiệu mới có quyền từ chối duyệt.');
@@ -3911,14 +4170,14 @@ export class MockDatabaseStore {
     // Kiểm tra nếu Phó hiệu trưởng được phân công theo tổ
     if (callerProfile.role === 'VICE_PRINCIPAL') {
       const userDepts = getUserDepartmentIds(callerProfile);
-      if (userDepts.length > 0 && (!res.department_id || !userDepts.includes(res.department_id))) {
+      if (!isResourceInDepartments(res, userDepts, this.profiles, this.departments)) {
         throw new Error('RLS: Phó hiệu trưởng chỉ có thẩm quyền phê duyệt sản phẩm thuộc các tổ chuyên môn được phân công phụ trách.');
       }
     }
     // Hiệu trưởng (SCHOOL_ADMIN) và ADMIN có thể duyệt tài nguyên của bất kỳ tổ nào
 
-    if (callerProfile.role !== 'ADMIN' && res.status !== 'pending_school_approval') {
-      throw new Error('Chỉ có thể phê duyệt cấp trường khi tài nguyên đã qua thẩm định cấp tổ (Chờ BGH phê duyệt).');
+    if (callerProfile.role !== 'ADMIN' && res.status !== 'pending_school_approval' && res.status !== 'submitted') {
+      throw new Error('Chỉ có thể phê duyệt cấp trường khi tài nguyên đang ở trạng thái Chờ BGH phê duyệt hoặc Chờ duyệt.');
     }
 
     const prevStatus = res.status;
@@ -3990,13 +4249,13 @@ export class MockDatabaseStore {
 
     if (callerProfile.role === 'VICE_PRINCIPAL') {
       const userDepts = getUserDepartmentIds(callerProfile);
-      if (userDepts.length > 0 && (!res.department_id || !userDepts.includes(res.department_id))) {
+      if (!isResourceInDepartments(res, userDepts, this.profiles, this.departments)) {
         throw new Error('RLS: Phó hiệu trưởng chỉ có thẩm quyền yêu cầu chỉnh sửa sản phẩm thuộc các tổ chuyên môn được phân công phụ trách.');
       }
     }
 
-    if (callerProfile.role !== 'ADMIN' && res.status !== 'pending_school_approval') {
-      throw new Error('Chỉ có thể yêu cầu chỉnh sửa tài nguyên đang ở trạng thái Chờ BGH phê duyệt.');
+    if (callerProfile.role !== 'ADMIN' && res.status !== 'pending_school_approval' && res.status !== 'submitted') {
+      throw new Error('Chỉ có thể yêu cầu chỉnh sửa tài nguyên đang ở trạng thái Chờ BGH phê duyệt hoặc Chờ duyệt.');
     }
 
     const prevStatus = res.status;
@@ -4064,13 +4323,13 @@ export class MockDatabaseStore {
 
     if (callerProfile.role === 'VICE_PRINCIPAL') {
       const userDepts = getUserDepartmentIds(callerProfile);
-      if (userDepts.length > 0 && (!res.department_id || !userDepts.includes(res.department_id))) {
+      if (!isResourceInDepartments(res, userDepts, this.profiles, this.departments)) {
         throw new Error('RLS: Phó hiệu trưởng chỉ có thẩm quyền từ chối phê duyệt sản phẩm thuộc các tổ chuyên môn được phân công phụ trách.');
       }
     }
 
-    if (callerProfile.role !== 'ADMIN' && res.status !== 'pending_school_approval') {
-      throw new Error('Chỉ có thể từ chối tài nguyên đang ở trạng thái Chờ BGH phê duyệt.');
+    if (callerProfile.role !== 'ADMIN' && res.status !== 'pending_school_approval' && res.status !== 'submitted') {
+      throw new Error('Chỉ có thể từ chối tài nguyên đang ở trạng thái Chờ BGH phê duyệt hoặc Chờ duyệt.');
     }
 
     const prevStatus = res.status;

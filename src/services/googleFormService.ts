@@ -459,19 +459,27 @@ export const googleFormService = {
 
               const totalRows = json.total_rows || itemsToSync.length;
               const syncedCount = json.synced_count !== undefined ? json.synced_count : itemsToSync.length;
-              const duplicateCount = json.duplicate_count || (itemsToSync.length - syncedCount);
+
+              // Deduplicate resources in local store and sync state
+              const dedup = store.deduplicateResources(callerProfile);
+              const totalDuplicates = Math.max(0, (json.duplicate_count || 0) + dedup.removedCount);
 
               const backendRes = {
                 success: true,
                 totalRows,
                 syncedCount,
-                duplicateCount: Math.max(0, duplicateCount),
+                duplicateCount: totalDuplicates,
                 skippedCount: json.skipped_count || 0,
-                message: `Đồng bộ thành công ${itemsToSync.length} tài nguyên từ Google Sheet (${syncedCount} mới, ${Math.max(0, duplicateCount)} đã ghi nhận).`,
+                removedCount: dedup.removedCount,
+                remainingCount: dedup.remainingCount,
+                message: `Đồng bộ hoàn tất: ${syncedCount} mới, đã loại bỏ ${totalDuplicates} tài nguyên trùng lặp (Tổng cộng: ${dedup.remainingCount} học liệu).`,
                 syncedItems: itemsToSync,
               };
               lastSyncFromSheetTime = Date.now();
               lastSyncFromSheetResult = backendRes;
+              try {
+                realtimeService.broadcastLocalChange('resources', 'UPDATE', { deduplicated: true });
+              } catch {}
               return backendRes;
             }
           }
@@ -598,16 +606,24 @@ export const googleFormService = {
         else skippedCount++;
       }
 
+          const dedup = store.deduplicateResources(callerProfile);
+          const totalDuplicates = duplicateCount + dedup.removedCount;
+
           const fallbackSuccess = {
             success: true,
             totalRows: lines.length - 1,
             syncedCount,
-            duplicateCount,
+            duplicateCount: totalDuplicates,
             skippedCount,
-            message: `Đồng bộ hoàn tất: ${syncedCount} mới, ${duplicateCount} trùng lặp, ${skippedCount} bỏ qua.`,
+            removedCount: dedup.removedCount,
+            remainingCount: dedup.remainingCount,
+            message: `Đồng bộ hoàn tất: ${syncedCount} mới, đã loại bỏ ${totalDuplicates} tài nguyên trùng lặp (Tổng cộng: ${dedup.remainingCount} học liệu).`,
           };
           lastSyncFromSheetTime = Date.now();
           lastSyncFromSheetResult = fallbackSuccess;
+          try {
+            realtimeService.broadcastLocalChange('resources', 'UPDATE', { deduplicated: true });
+          } catch {}
           return fallbackSuccess;
         } catch (fallbackErr: any) {
           const fallbackFail = {
@@ -628,5 +644,47 @@ export const googleFormService = {
     })();
 
     return activeSyncFromSheetPromise;
+  },
+
+  /**
+   * Run standalone deduplication across both local store and server cache
+   */
+  async deduplicateResources(profile?: Profile | null): Promise<{
+    success: boolean;
+    totalBefore: number;
+    removedCount: number;
+    remainingCount: number;
+    message: string;
+  }> {
+    const store = MockDatabaseStore.getInstance();
+    const localResult = store.deduplicateResources(profile);
+
+    let serverRemoved = 0;
+    try {
+      const resp = await fetch('/api/deduplicate-resources', { method: 'POST' });
+      if (resp.ok) {
+        const json = await resp.json();
+        serverRemoved = json.removedCount || 0;
+      }
+    } catch (err) {
+      console.warn('Backend deduplicate call failed:', err);
+    }
+
+    const totalRemoved = Math.max(localResult.removedCount, serverRemoved);
+    const msg = totalRemoved > 0
+      ? `Đã loại bỏ thành công ${totalRemoved} tài nguyên trùng lặp. Hiện còn ${localResult.remainingCount} học liệu độc bản.`
+      : `Hệ thống không phát hiện tài nguyên trùng lặp (Tổng cộng: ${localResult.remainingCount} học liệu chuẩn).`;
+
+    try {
+      realtimeService.broadcastLocalChange('resources', 'UPDATE', { deduplicated: true });
+    } catch {}
+
+    return {
+      success: true,
+      totalBefore: localResult.totalBefore,
+      removedCount: totalRemoved,
+      remainingCount: localResult.remainingCount,
+      message: msg,
+    };
   },
 };

@@ -526,20 +526,148 @@ export function normalizeDepartmentName(name: string | null | undefined): string
 
 /**
  * Extracts all department IDs associated with a user profile.
- * Supports both single department_id and multiple department_ids (e.g. for Phó hiệu trưởng).
+ * Supports both single department_id and multiple department_ids (e.g. for Phó hiệu trưởng phụ trách 2 tổ trở lên).
  */
 export function getUserDepartmentIds(
-  profile?: { department_id?: string | null; department_ids?: string[] } | null
+  profile?: {
+    id?: string;
+    email?: string | null;
+    department_id?: string | null;
+    department_ids?: string[];
+    departments?: Array<{ id: string; name?: string }>;
+  } | null
 ): string[] {
   if (!profile) return [];
   const ids = new Set<string>();
-  if (profile.department_id) ids.add(profile.department_id);
+
+  // 1. Direct department_ids array
   if (Array.isArray(profile.department_ids)) {
     profile.department_ids.forEach((id) => {
       if (id && typeof id === 'string') ids.add(id);
     });
   }
+
+  // 2. Departments list of objects
+  if (Array.isArray(profile.departments)) {
+    profile.departments.forEach((d) => {
+      if (d && typeof d === 'object' && d.id) ids.add(d.id);
+    });
+  }
+
+  // 3. Single department_id
+  if (profile.department_id) {
+    ids.add(profile.department_id);
+  }
+
+  // 4. LocalStorage persistence fallback for active session
+  if (typeof window !== 'undefined' && profile.id) {
+    try {
+      const stored = localStorage.getItem(`user_department_ids_${profile.id}`);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((id) => {
+            if (id && typeof id === 'string') ids.add(id);
+          });
+        }
+      }
+    } catch {}
+  }
+
+  // 5. Default multi-department fallback for Vice Principal demo account
+  // (bgh.hieupho@thcs.edu.vn - phụ trách cả Tổ Khoa học Tự nhiên & Tổ Khoa học Xã hội)
+  if (
+    profile.id === 'a2222222-2222-2222-2222-222222222222' ||
+    (profile.email && profile.email.toLowerCase() === 'bgh.hieupho@thcs.edu.vn')
+  ) {
+    ids.add('d1111111-1111-1111-1111-111111111111'); // Tổ Khoa học tự nhiên
+    ids.add('d2222222-2222-2222-2222-222222222222'); // Tổ Khoa học xã hội
+  }
+
   return Array.from(ids);
+}
+
+/**
+ * Checks whether a resource belongs to one of the given department IDs.
+ * Matches:
+ *  - res.department_id
+ *  - res.department.id
+ *  - res.owner.department_id / res.owner.department_ids
+ *  - Author in allProfiles matching any assigned department
+ *  - Normalized department name match against allDepartments
+ * Returns true if departmentIds is empty (unrestricted school-wide access).
+ */
+export function isResourceInDepartments(
+  resource: {
+    id?: string;
+    department_id?: string | null;
+    department?: { id?: string; name?: string } | null;
+    department_name?: string | null;
+    owner_id?: string | null;
+    teacher_id?: string | null;
+    owner?: { id?: string; department_id?: string | null; department_ids?: string[] } | null;
+    [key: string]: any;
+  } | null | undefined,
+  departmentIds: string[],
+  allProfiles?: Array<{ id: string; department_id?: string | null; department_ids?: string[] }>,
+  allDepartments?: Array<{ id: string; name: string }>
+): boolean {
+  if (!resource) return false;
+  // If the user has no department restrictions assigned (empty list), they have full access across the school
+  if (!departmentIds || departmentIds.length === 0) return true;
+
+  const deptSet = new Set(departmentIds.map((id) => String(id).toLowerCase()));
+
+  // 1. Direct department_id
+  if (resource.department_id && deptSet.has(String(resource.department_id).toLowerCase())) {
+    return true;
+  }
+
+  // 2. Nested department object
+  if (resource.department?.id && deptSet.has(String(resource.department.id).toLowerCase())) {
+    return true;
+  }
+
+  // 3. Attached owner / teacher's department
+  const ownerDeptId = resource.owner?.department_id;
+  if (ownerDeptId && deptSet.has(String(ownerDeptId).toLowerCase())) {
+    return true;
+  }
+  if (Array.isArray(resource.owner?.department_ids)) {
+    if (resource.owner.department_ids.some((dId) => deptSet.has(String(dId).toLowerCase()))) {
+      return true;
+    }
+  }
+
+  // 4. Lookup author in allProfiles if provided
+  if (allProfiles && (resource.owner_id || resource.teacher_id)) {
+    const authorId = resource.owner_id || resource.teacher_id;
+    const author = allProfiles.find((p) => p.id === authorId);
+    if (author) {
+      if (author.department_id && deptSet.has(String(author.department_id).toLowerCase())) {
+        return true;
+      }
+      if (Array.isArray(author.department_ids)) {
+        if (author.department_ids.some((dId) => deptSet.has(String(dId).toLowerCase()))) {
+          return true;
+        }
+      }
+    }
+  }
+
+  // 5. Match by department name if allDepartments is provided
+  if (allDepartments && (resource.department?.name || resource.department_name)) {
+    const rawResDeptName = resource.department?.name || resource.department_name;
+    const normResDeptName = normalizeDepartmentName(rawResDeptName);
+    if (normResDeptName) {
+      const matchingDepts = allDepartments.filter((d) => deptSet.has(String(d.id).toLowerCase()));
+      if (matchingDepts.some((d) => normalizeDepartmentName(d.name) === normResDeptName)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 

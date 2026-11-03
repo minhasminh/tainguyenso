@@ -85,7 +85,13 @@ export function UploadResourcePage() {
 
       if (showToast) {
         if (sheetResult.syncedCount > 0) {
-          toast?.success?.(`Đã đồng bộ ${sheetResult.syncedCount} tài nguyên mới từ Google Form!`);
+          if (sheetResult.duplicateCount > 0) {
+            toast?.success?.(`Đã đồng bộ ${sheetResult.syncedCount} tài nguyên mới và loại bỏ ${sheetResult.duplicateCount} mục trùng lặp!`);
+          } else {
+            toast?.success?.(`Đã đồng bộ ${sheetResult.syncedCount} tài nguyên mới từ Google Form!`);
+          }
+        } else if (sheetResult.duplicateCount > 0) {
+          toast?.info?.(`Dữ liệu đã đồng bộ mới nhất (Đã tự động loại bỏ ${sheetResult.duplicateCount} mục trùng lặp).`);
         } else {
           toast?.info?.('Đã kiểm tra và làm mới dữ liệu từ biểu mẫu Google Form.');
         }

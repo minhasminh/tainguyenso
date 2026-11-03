@@ -299,9 +299,15 @@ export function ResourceListPage() {
       );
       await fetchResources();
       if (syncResult.syncedCount > 0) {
-        toast.success(`Đã đồng bộ thành công ${syncResult.syncedCount} tài nguyên mới từ Google Form!`);
+        if (syncResult.duplicateCount > 0) {
+          toast.success(`Đã đồng bộ ${syncResult.syncedCount} tài nguyên mới và loại bỏ ${syncResult.duplicateCount} mục trùng lặp!`);
+        } else {
+          toast.success(`Đã đồng bộ thành công ${syncResult.syncedCount} tài nguyên mới từ Google Form!`);
+        }
+      } else if (syncResult.duplicateCount > 0) {
+        toast.info(`Dữ liệu đã mới nhất! Hệ thống đã tự động lọc bỏ ${syncResult.duplicateCount} tài nguyên trùng lặp.`);
       } else {
-        toast.success('Đã kiểm tra và làm mới dữ liệu từ Google Form! (Không có tài nguyên mới)');
+        toast.success('Đã kiểm tra và làm mới dữ liệu từ Google Form! (Tất cả học liệu đã đồng bộ)');
       }
     } catch (err: any) {
       toast.error(err?.message || 'Có lỗi xảy ra khi đồng bộ Google Form');

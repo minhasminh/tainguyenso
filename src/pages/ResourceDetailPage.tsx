@@ -10,6 +10,7 @@ import {
   detectResourceProvider,
   getProviderInfo,
   getUserDepartmentIds,
+  isResourceInDepartments,
 } from '../utils/formatters';
 import { ConfirmationDialog } from '../components/ConfirmationDialog';
 import { ResourceQrCard } from '../components/resources/ResourceQrCard';
@@ -123,7 +124,7 @@ export function ResourceDetailPage({ id }: ResourceDetailPageProps) {
   }
 
   const userDepts = getUserDepartmentIds(profile);
-  const isInSameDept = Boolean(resource.department_id && userDepts.includes(resource.department_id));
+  const isInSameDept = isResourceInDepartments(resource, userDepts);
 
   const isOwner = resource.owner_id === profile?.id;
   const isAdmin = profile?.role === 'ADMIN';
@@ -131,7 +132,7 @@ export function ResourceDetailPage({ id }: ResourceDetailPageProps) {
   const isVicePrincipal = profile?.role === 'VICE_PRINCIPAL'; // Phó hiệu trưởng
 
   // Phó hiệu trưởng duyệt sản phẩm trong các tổ được phân công phụ trách (hoặc nếu chưa gán giới hạn thì được duyệt)
-  const canVicePrincipalApprove = isVicePrincipal && (userDepts.length === 0 || isInSameDept);
+  const canVicePrincipalApprove = isVicePrincipal && isResourceInDepartments(resource, userDepts);
 
   const isSubjectLeader =
     (profile?.role === 'SUBJECT_LEADER' || profile?.role === 'VICE_SUBJECT_LEADER') &&

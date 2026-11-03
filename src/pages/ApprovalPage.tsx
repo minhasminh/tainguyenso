@@ -20,7 +20,7 @@ import { departmentService } from '../services/departmentService';
 import { Resource, Department } from '../types';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../hooks/useToast';
-import { getResourceStatusInfo, formatVietnamDateTime, getUserDepartmentIds } from '../utils/formatters';
+import { getResourceStatusInfo, formatVietnamDateTime, getUserDepartmentIds, isResourceInDepartments } from '../utils/formatters';
 import { ApprovalActionDialog, WorkflowActionType } from '../components/resources/ApprovalActionDialog';
 
 export function ApprovalPage() {
@@ -81,8 +81,14 @@ export function ApprovalPage() {
       if (!matchTitle && !matchOwner && !matchSubject) return false;
     }
 
-    if (selectedDepartment !== 'all' && item.department_id !== selectedDepartment) {
-      return false;
+    if (selectedDepartment !== 'all') {
+      if (!isResourceInDepartments(item, [selectedDepartment], undefined, departments)) {
+        return false;
+      }
+    } else if (isVP && userDepts.length > 0) {
+      if (!isResourceInDepartments(item, userDepts, undefined, departments)) {
+        return false;
+      }
     }
 
     return true;
@@ -125,10 +131,10 @@ export function ApprovalPage() {
   const canLeaderReview = (res: Resource) => {
     if (isGlobalApprover) return true;
     if (isVP) {
-      return userDepts.length === 0 || (res.department_id && userDepts.includes(res.department_id));
+      return isResourceInDepartments(res, userDepts, undefined, departments);
     }
     if (profile?.role === 'SUBJECT_LEADER' || profile?.role === 'VICE_SUBJECT_LEADER') {
-      return userDepts.length === 0 || (res.department_id && userDepts.includes(res.department_id));
+      return isResourceInDepartments(res, userDepts, undefined, departments);
     }
     return false;
   };
@@ -137,7 +143,7 @@ export function ApprovalPage() {
     if (isGlobalApprover) return true; // Hiệu trưởng có thể duyệt tài nguyên của bất kỳ tổ nào
     if (isVP) {
       // Phó hiệu trưởng có thể ở trong nhiều tổ để duyệt sản phẩm
-      return userDepts.length === 0 || (res.department_id && userDepts.includes(res.department_id));
+      return isResourceInDepartments(res, userDepts, undefined, departments);
     }
     return false;
   };

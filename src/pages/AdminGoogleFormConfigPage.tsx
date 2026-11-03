@@ -132,6 +132,16 @@ export function AdminGoogleFormConfigPage() {
     message: string;
   } | null>(null);
 
+  // Deduplication state
+  const [deduping, setDeduping] = useState(false);
+  const [dedupResult, setDedupResult] = useState<{
+    success: boolean;
+    totalBefore: number;
+    removedCount: number;
+    remainingCount: number;
+    message: string;
+  } | null>(null);
+
   const supabaseCreds = getSupabaseCredentials();
 
   useEffect(() => {
@@ -312,6 +322,29 @@ export function AdminGoogleFormConfigPage() {
       });
     } finally {
       setSheetSyncing(false);
+    }
+  };
+
+  const handleDeduplicate = async () => {
+    if (deduping) return;
+    try {
+      setDeduping(true);
+      setDedupResult(null);
+      const res = await googleFormService.deduplicateResources(profile);
+      setDedupResult(res);
+      await loadLogs();
+      const s = await googleFormService.getSyncStats(profile);
+      setStats(s);
+    } catch (err: any) {
+      setDedupResult({
+        success: false,
+        totalBefore: 0,
+        removedCount: 0,
+        remainingCount: 0,
+        message: err.message || 'Lỗi khi loại bỏ tài nguyên trùng lặp',
+      });
+    } finally {
+      setDeduping(false);
     }
   };
 
@@ -986,8 +1019,8 @@ $$;
                     <button
                       type="button"
                       onClick={() => handleSyncFromSheet('1gH6zehWNY4pWn9bEzslTBI5ROBzr8Q_Cpug-T5b-8BU')}
-                      disabled={sheetSyncing}
-                      className="px-4 py-2 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white transition flex items-center gap-1.5 shadow-xs disabled:opacity-50"
+                      disabled={sheetSyncing || deduping}
+                      className="px-4 py-2 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white transition flex items-center gap-1.5 shadow-xs disabled:opacity-50 cursor-pointer"
                     >
                       {sheetSyncing ? (
                         <>
@@ -997,7 +1030,27 @@ $$;
                       ) : (
                         <>
                           <RefreshCw className="w-3.5 h-3.5" />
-                          Đồng bộ ngay từ Trang tính
+                          Đồng bộ từ Trang tính
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleDeduplicate}
+                      disabled={deduping || sheetSyncing}
+                      className="px-3.5 py-2 text-xs font-bold rounded-xl bg-amber-500 hover:bg-amber-600 text-white transition flex items-center gap-1.5 shadow-xs disabled:opacity-50 cursor-pointer"
+                      title="Quét toàn bộ hệ thống và tự động loại bỏ các tài nguyên trùng lặp (theo Google Drive ID, tiêu đề và tác giả)"
+                    >
+                      {deduping ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          Đang lọc...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-3.5 h-3.5" />
+                          Loại bỏ trùng lặp
                         </>
                       )}
                     </button>
@@ -1014,6 +1067,26 @@ $$;
                       <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
                     )}
                     <span>{sheetSyncResult.message}</span>
+                  </div>
+                )}
+
+                {dedupResult && (
+                  <div className={`mt-3.5 p-3 rounded-xl border text-xs font-medium flex items-center justify-between gap-2 ${
+                    dedupResult.success ? 'bg-amber-50/80 border-amber-300 text-amber-900 shadow-xs' : 'bg-rose-50 border-rose-200 text-rose-800'
+                  }`}>
+                    <div className="flex items-center gap-2">
+                      {dedupResult.success ? (
+                        <CheckCircle2 className="w-4 h-4 text-amber-600 shrink-0" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                      )}
+                      <span>{dedupResult.message}</span>
+                    </div>
+                    {dedupResult.removedCount > 0 && (
+                      <span className="px-2 py-0.5 rounded-full bg-amber-200 text-amber-800 text-[10px] font-bold shrink-0">
+                        Đã dọn dẹp -{dedupResult.removedCount} bản sao
+                      </span>
+                    )}
                   </div>
                 )}
               </div>

@@ -2,6 +2,7 @@ import { getSupabaseClient, ensureSupabaseConfigLoaded } from '../lib/supabase/c
 import { MockDatabaseStore } from '../lib/supabase/mockStore';
 import { realtimeService } from './realtimeService';
 import { Profile, UserRole, UserStatus } from '../types';
+import { getUserDepartmentIds } from '../utils/formatters';
 
 const VALID_DEPT_IDS = new Set([
   'd1111111-1111-1111-1111-111111111111',
@@ -55,8 +56,31 @@ const isValidUUID = (str?: string | null): boolean =>
   Boolean(str && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str));
 
 export const userService = {
-  async getProfiles(callerProfile?: Profile | null): Promise<Profile[]> {
+  async getProfiles(callerProfile: Profile | null): Promise<Profile[]> {
     await ensureSupabaseConfigLoaded();
+
+    // 1. Prioritize /api/users because it merges the persistent multi-department mapping (userDepartmentsMap)
+    try {
+      const res = await fetch('/api/users');
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+          const enriched = json.data.map((u: Profile) => {
+            const deptIds = getUserDepartmentIds(u);
+            return {
+              ...u,
+              department_ids: deptIds,
+            };
+          });
+          MockDatabaseStore.getInstance().syncAllProfilesFromLive(enriched);
+          return enriched;
+        }
+      }
+    } catch (e) {
+      console.warn('Fetch /api/users failed, falling back to Supabase client:', e);
+    }
+
+    // 2. Direct Supabase query fallback
     const client = getSupabaseClient();
     if (client) {
       try {
@@ -80,29 +104,22 @@ export const userService = {
           .order('created_at', { ascending: false });
 
         if (!error && data && data.length > 0) {
-          MockDatabaseStore.getInstance().syncAllProfilesFromLive(data as any);
-          return data as any;
+          const enriched = data.map((u: any) => {
+            const deptIds = getUserDepartmentIds(u);
+            return {
+              ...u,
+              department_ids: deptIds,
+            };
+          });
+          MockDatabaseStore.getInstance().syncAllProfilesFromLive(enriched as any);
+          return enriched as any;
         }
         if (error) {
           console.warn('[Supabase] getProfiles error:', error.message);
         }
       } catch (err: any) {
-        console.warn('Supabase query failed, falling back to /api/users:', err);
+        console.warn('Supabase query failed:', err);
       }
-    }
-
-    // Attempt server proxy API
-    try {
-      const res = await fetch('/api/users');
-      if (res.ok) {
-        const json = await res.json();
-        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
-          MockDatabaseStore.getInstance().syncAllProfilesFromLive(json.data);
-          return json.data;
-        }
-      }
-    } catch (e) {
-      console.warn('Fetch /api/users failed:', e);
     }
 
     return MockDatabaseStore.getInstance().getProfiles(callerProfile || null);
@@ -110,6 +127,23 @@ export const userService = {
 
   async getProfileById(id: string, callerProfile: Profile | null): Promise<Profile | null> {
     await ensureSupabaseConfigLoaded();
+
+    // 1. Try /api/users first for multi-department resolution
+    try {
+      const res = await fetch('/api/users');
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data)) {
+          const found = json.data.find((p: any) => p.id === id);
+          if (found) {
+            found.department_ids = getUserDepartmentIds(found);
+            MockDatabaseStore.getInstance().syncProfileFromLive(found);
+            return found;
+          }
+        }
+      }
+    } catch {}
+
     const client = getSupabaseClient();
     if (client) {
       try {
@@ -134,8 +168,12 @@ export const userService = {
           .maybeSingle();
 
         if (!error && data) {
-          MockDatabaseStore.getInstance().syncProfileFromLive(data as any);
-          return data as any;
+          const enriched = {
+            ...data,
+            department_ids: getUserDepartmentIds(data as any),
+          };
+          MockDatabaseStore.getInstance().syncProfileFromLive(enriched as any);
+          return enriched as any;
         }
       } catch (err: any) {
         console.warn('Supabase query failed for single profile:', err);
@@ -151,6 +189,14 @@ export const userService = {
     callerProfile: Profile | null
   ): Promise<Profile> {
     await ensureSupabaseConfigLoaded();
+
+    const rawDeptIds = Array.isArray(updates.department_ids) ? updates.department_ids : null;
+    if (rawDeptIds && typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(`user_department_ids_${targetUserId}`, JSON.stringify(rawDeptIds));
+      } catch {}
+    }
+
     const updatePayload: Record<string, any> = {
       ...updates,
       updated_at: new Date().toISOString(),
@@ -199,31 +245,46 @@ export const userService = {
       }
     }
 
-    if (!updatedProfile) {
-      try {
-        const res = await fetch(`/api/users/${targetUserId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(updatePayload),
-        });
-        if (res.ok) {
-          const json = await res.json();
-          if (json.success && json.data) {
+    // Always inform server /api/users to maintain persistent userDepartmentsMap
+    try {
+      const serverPayload: any = { ...updatePayload };
+      if (rawDeptIds) {
+        serverPayload.department_ids = rawDeptIds;
+      }
+      const res = await fetch(`/api/users/${targetUserId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(serverPayload),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          if (!updatedProfile) {
             updatedProfile = json.data;
+          } else if (Array.isArray(json.data.department_ids)) {
+            updatedProfile.department_ids = json.data.department_ids;
           }
         }
-      } catch (e) {
-        console.warn('PUT /api/users failed:', e);
       }
+    } catch (e) {
+      console.warn('PUT /api/users failed:', e);
     }
 
     if (updatedProfile) {
+      if (rawDeptIds && rawDeptIds.length > 0) {
+        updatedProfile.department_ids = rawDeptIds;
+      } else if (!updatedProfile.department_ids || updatedProfile.department_ids.length === 0) {
+        updatedProfile.department_ids = getUserDepartmentIds(updatedProfile);
+      }
       MockDatabaseStore.getInstance().syncProfileFromLive(updatedProfile);
       realtimeService.broadcastLocalChange('profiles', 'UPDATE', updatedProfile);
       return updatedProfile;
     }
 
     const localUpdated = MockDatabaseStore.getInstance().updateProfile(targetUserId, updates, callerProfile);
+    if (rawDeptIds && rawDeptIds.length > 0) {
+      localUpdated.department_ids = rawDeptIds;
+    }
     realtimeService.broadcastLocalChange('profiles', 'UPDATE', localUpdated);
     return localUpdated;
   },
@@ -268,6 +329,12 @@ export const userService = {
     const client = getSupabaseClient();
     let savedProfile: Profile | null = null;
     let lastError: string | null = null;
+
+    if (Array.isArray(data.department_ids) && typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(`user_department_ids_${id}`, JSON.stringify(data.department_ids));
+      } catch {}
+    }
 
     if (client) {
       try {
@@ -315,42 +382,50 @@ export const userService = {
       }
     }
 
-    // If client failed or not configured, try server central API
-    if (!savedProfile) {
-      try {
-        const res = await fetch('/api/users', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id,
-            full_name: data.full_name,
-            email: data.email,
-            role: data.role,
-            status: data.status,
-            department_id: cleanDeptId,
-            subject_id: cleanSubjId,
-            avatar_url: data.avatar_url,
-            password: pwdToStore,
-          }),
-        });
-        if (res.ok) {
-          const json = await res.json();
-          if (json.success && json.data) {
+    // Inform server /api/users to maintain persistent userDepartmentsMap
+    try {
+      const res = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id,
+          full_name: data.full_name,
+          email: data.email,
+          role: data.role,
+          status: data.status,
+          department_id: cleanDeptId,
+          department_ids: data.department_ids,
+          subject_id: cleanSubjId,
+          avatar_url: data.avatar_url,
+          password: pwdToStore,
+        }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          if (!savedProfile) {
             savedProfile = json.data as Profile;
-          } else if (json.message) {
-            lastError = json.message;
+          } else if (Array.isArray(json.data.department_ids)) {
+            savedProfile.department_ids = json.data.department_ids;
           }
-        } else {
-          const errData = await res.json().catch(() => ({}));
-          lastError = errData.message || `Server error (${res.status})`;
+        } else if (json.message && !savedProfile) {
+          lastError = json.message;
         }
-      } catch (apiErr: any) {
-        lastError = apiErr?.message || String(apiErr);
-        console.warn('POST /api/users fallback failed:', apiErr);
+      } else if (!savedProfile) {
+        const errData = await res.json().catch(() => ({}));
+        lastError = errData.message || `Server error (${res.status})`;
       }
+    } catch (apiErr: any) {
+      if (!savedProfile) lastError = apiErr?.message || String(apiErr);
+      console.warn('POST /api/users fallback failed:', apiErr);
     }
 
     if (savedProfile) {
+      if (Array.isArray(data.department_ids) && data.department_ids.length > 0) {
+        savedProfile.department_ids = data.department_ids;
+      } else if (!savedProfile.department_ids || savedProfile.department_ids.length === 0) {
+        savedProfile.department_ids = getUserDepartmentIds(savedProfile);
+      }
       MockDatabaseStore.getInstance().syncProfileFromLive(savedProfile, pwdToStore);
       realtimeService.broadcastLocalChange('profiles', 'INSERT', savedProfile);
       return savedProfile;

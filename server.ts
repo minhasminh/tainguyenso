@@ -11,8 +11,33 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = parseInt(process.env.PORT || '3000', 10);
-const HOST = '0.0.0.0';
+
+function getPort(): number {
+  const portArgIdx = process.argv.indexOf('--port');
+  if (portArgIdx !== -1 && process.argv[portArgIdx + 1]) {
+    const p = parseInt(process.argv[portArgIdx + 1], 10);
+    if (!isNaN(p)) return p;
+  }
+  if (process.env.APP_PORT) {
+    const p = parseInt(process.env.APP_PORT, 10);
+    if (!isNaN(p)) return p;
+  }
+  if (process.env.PORT === '8080') {
+    return 3000;
+  }
+  return parseInt(process.env.PORT || '3000', 10);
+}
+
+function getHost(): string {
+  const hostArgIdx = process.argv.indexOf('--host');
+  if (hostArgIdx !== -1 && process.argv[hostArgIdx + 1]) {
+    return process.argv[hostArgIdx + 1];
+  }
+  return process.env.HOST || '0.0.0.0';
+}
+
+const PORT = getPort();
+const HOST = getHost();
 
 // Secret key for Webhook verification (Stored in Environment Secrets per Section 17)
 const GOOGLE_FORM_SYNC_SECRET =
@@ -165,15 +190,53 @@ const submissionIdsSet = new Set<string>();
 // Persistence file for local dev cache
 const SYNC_CACHE_FILE = path.join(__dirname, '.sync_cache.json');
 
+function normalizeTitle(title?: string | null): string {
+  if (!title) return '';
+  return title
+    .toLowerCase()
+    .normalize('NFC')
+    .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()\[\]"'’“”]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function deduplicateCacheRecords(records: SyncedSubmissionRecord[]): SyncedSubmissionRecord[] {
+  const seenDrive = new Set<string>();
+  const seenTitleEmail = new Set<string>();
+  const seenSubIds = new Set<string>();
+  const result: SyncedSubmissionRecord[] = [];
+
+  for (const item of records) {
+    if (item.submission_id && seenSubIds.has(item.submission_id)) continue;
+
+    const driveId = item.drive_file_id?.trim();
+    if (driveId && seenDrive.has(driveId)) continue;
+
+    const titleNorm = normalizeTitle(item.title);
+    const emailNorm = (item.teacher_email || '').toLowerCase().trim();
+    const key = titleNorm + '||' + emailNorm;
+    if (titleNorm.length >= 3 && seenTitleEmail.has(key)) continue;
+
+    if (item.submission_id) seenSubIds.add(item.submission_id);
+    if (driveId) seenDrive.add(driveId);
+    if (titleNorm.length >= 3) seenTitleEmail.add(key);
+
+    result.push(item);
+  }
+  return result;
+}
+
 try {
   if (fs.existsSync(SYNC_CACHE_FILE)) {
     const raw = fs.readFileSync(SYNC_CACHE_FILE, 'utf-8');
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
-      parsed.forEach((item: SyncedSubmissionRecord) => {
+      const deduped = deduplicateCacheRecords(parsed);
+      deduped.forEach((item: SyncedSubmissionRecord) => {
         recentSyncSubmissions.push(item);
         if (item.submission_id) submissionIdsSet.add(item.submission_id);
       });
+      console.log(`[SYNC CACHE] Loaded ${recentSyncSubmissions.length} unique submissions (pruned ${parsed.length - deduped.length} duplicates).`);
     }
   }
 } catch {
@@ -182,6 +245,9 @@ try {
 
 function persistCache() {
   try {
+    const deduped = deduplicateCacheRecords(recentSyncSubmissions);
+    recentSyncSubmissions.length = 0;
+    deduped.forEach((it) => recentSyncSubmissions.push(it));
     fs.writeFileSync(
       SYNC_CACHE_FILE,
       JSON.stringify(recentSyncSubmissions.slice(0, 200), null, 2),
@@ -304,6 +370,35 @@ function sanitizeServerSubjId(id?: string | null): string | null {
   return SERVER_VALID_SUBJ_IDS.has(trimmed) ? trimmed : null;
 }
 
+// Persistent user-department mapping (for multi-department assignment such as Vice Principal)
+const USER_DEPARTMENTS_FILE = path.join(__dirname, '.user_departments.json');
+let userDepartmentsMap: Record<string, string[]> = {
+  'a2222222-2222-2222-2222-222222222222': [
+    'd1111111-1111-1111-1111-111111111111',
+    'd2222222-2222-2222-2222-222222222222',
+  ],
+};
+
+function loadUserDepartments(): void {
+  try {
+    if (fs.existsSync(USER_DEPARTMENTS_FILE)) {
+      const content = fs.readFileSync(USER_DEPARTMENTS_FILE, 'utf-8');
+      const parsed = JSON.parse(content);
+      if (parsed && typeof parsed === 'object') {
+        userDepartmentsMap = { ...userDepartmentsMap, ...parsed };
+      }
+    }
+  } catch {}
+}
+
+function saveUserDepartments(): void {
+  try {
+    fs.writeFileSync(USER_DEPARTMENTS_FILE, JSON.stringify(userDepartmentsMap, null, 2), 'utf-8');
+  } catch {}
+}
+
+loadUserDepartments();
+
 // Centralized Users API for cross-device synchronization
 app.get('/api/users', async (_req: Request, res: Response) => {
   if (supabaseClient) {
@@ -328,7 +423,15 @@ app.get('/api/users', async (_req: Request, res: Response) => {
         .order('created_at', { ascending: false });
 
       if (!error && data) {
-        res.json({ success: true, data });
+        const enriched = data.map((u: any) => {
+          const stored = userDepartmentsMap[u.id];
+          const deptIds = stored && stored.length > 0 ? stored : (u.department_id ? [u.department_id] : []);
+          return {
+            ...u,
+            department_ids: deptIds,
+          };
+        });
+        res.json({ success: true, data: enriched });
         return;
       }
       if (error) {
@@ -355,6 +458,11 @@ app.post('/api/users', async (req: Request, res: Response) => {
   const cleanDeptId = sanitizeServerDeptId(department_id);
   const cleanSubjId = sanitizeServerSubjId(subject_id);
   const cleanPass = (password && String(password).trim()) ? String(password).trim() : 'Giaovien@123';
+
+  if (Array.isArray(req.body.department_ids)) {
+    userDepartmentsMap[id] = req.body.department_ids;
+    saveUserDepartments();
+  }
 
   if (supabaseClient) {
     try {
@@ -396,7 +504,8 @@ app.post('/api/users', async (req: Request, res: Response) => {
         return;
       }
 
-      res.json({ success: true, data });
+      const assignedDepts = userDepartmentsMap[data.id] || (data.department_id ? [data.department_id] : []);
+      res.json({ success: true, data: { ...data, department_ids: assignedDepts } });
       return;
     } catch (err: any) {
       console.error('[API][POST /api/users] Exception:', err.message);
@@ -410,6 +519,12 @@ app.post('/api/users', async (req: Request, res: Response) => {
 
 app.put('/api/users/:id', async (req: Request, res: Response) => {
   const targetId = req.params.id;
+  const rawDepartmentIds = Array.isArray(req.body.department_ids) ? req.body.department_ids : null;
+  if (rawDepartmentIds) {
+    userDepartmentsMap[targetId] = rawDepartmentIds;
+    saveUserDepartments();
+  }
+
   const updates = { ...req.body };
   delete updates.id;
   delete updates.department;
@@ -452,7 +567,9 @@ app.put('/api/users/:id', async (req: Request, res: Response) => {
         res.status(500).json({ success: false, message: error.message });
         return;
       }
-      res.json({ success: true, data });
+
+      const finalDeptIds = userDepartmentsMap[targetId] || (data.department_id ? [data.department_id] : []);
+      res.json({ success: true, data: { ...data, department_ids: finalDeptIds } });
       return;
     } catch (err: any) {
       res.status(500).json({ success: false, message: err.message });
@@ -970,6 +1087,8 @@ async function syncGoogleSheetSubmissions(sheetId: string = '1gH6zehWNY4pWn9bEzs
   const syncedItems: any[] = [];
   const duplicateItems: any[] = [];
   const skippedItems: any[] = [];
+  const seenDriveInSheet = new Map<string, string>();
+  const seenTitleEmailInSheet = new Map<string, string>();
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
@@ -1013,6 +1132,35 @@ async function syncGoogleSheetSubmissions(sheetId: string = '1gH6zehWNY4pWn9bEzs
 
     const safeTime = timestamp.replace(/[^0-9]/g, '_') || `row_${i + 1}`;
     const submissionId = `sheet_${cleanSheetId.substring(0, 8)}_r${i + 1}_${safeTime}`;
+
+    // Deduplication check: Check if this item is a duplicate
+    const titleNorm = normalizeTitle(title);
+    const keyTitleEmail = titleNorm + '||' + email;
+    const isDriveDup = Boolean(driveFileId && seenDriveInSheet.has(driveFileId));
+    const isTitleEmailDup = Boolean(titleNorm.length >= 3 && seenTitleEmailInSheet.has(keyTitleEmail));
+    const isSubIdDup = submissionIdsSet.has(submissionId);
+
+    // Also check if already present in recentSyncSubmissions
+    const existingInCache = recentSyncSubmissions.find((s) => {
+      if (s.submission_id === submissionId) return true;
+      if (driveFileId && s.drive_file_id && s.drive_file_id === driveFileId) return true;
+      if (titleNorm.length >= 3 && normalizeTitle(s.title) === titleNorm && (s.teacher_email || '').toLowerCase().trim() === email) return true;
+      return false;
+    });
+
+    if (isDriveDup || isTitleEmailDup || isSubIdDup || existingInCache) {
+      const existingResId = existingInCache?.resource_id || (driveFileId ? seenDriveInSheet.get(driveFileId) : null) || seenTitleEmailInSheet.get(keyTitleEmail);
+      duplicateItems.push({
+        submission_id: submissionId,
+        title,
+        resource_id: existingResId,
+        reason: isDriveDup ? 'Trùng tệp Google Drive' : 'Trùng tiêu đề và giáo viên',
+      });
+      continue;
+    }
+
+    if (driveFileId) seenDriveInSheet.set(driveFileId, submissionId);
+    if (titleNorm.length >= 3) seenTitleEmailInSheet.set(keyTitleEmail, submissionId);
 
     let createdResourceId: string | undefined;
 
@@ -1198,6 +1346,33 @@ app.get('/api/sync-google-sheet-direct/auto', async (req: Request, res: Response
   }
 });
 
+app.post('/api/deduplicate-resources', (_req: Request, res: Response) => {
+  try {
+    const beforeCount = recentSyncSubmissions.length;
+    const deduped = deduplicateCacheRecords(recentSyncSubmissions);
+    recentSyncSubmissions.length = 0;
+    submissionIdsSet.clear();
+    deduped.forEach((item) => {
+      recentSyncSubmissions.push(item);
+      if (item.submission_id) submissionIdsSet.add(item.submission_id);
+    });
+    persistCache();
+    const removedCount = beforeCount - recentSyncSubmissions.length;
+    res.json({
+      success: true,
+      totalBefore: beforeCount,
+      removedCount,
+      remainingCount: recentSyncSubmissions.length,
+      message: `Đã loại bỏ ${removedCount} bản ghi trùng lặp trong bộ nhớ đồng bộ. Còn lại ${recentSyncSubmissions.length} bản ghi duy nhất.`,
+    });
+  } catch (err: any) {
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi khi loại bỏ trùng lặp: ' + (err?.message || err),
+    });
+  }
+});
+
 // Vite middleware or static serving
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
@@ -1207,6 +1382,7 @@ async function startServer() {
         middlewareMode: true,
         host: HOST,
         port: PORT,
+        hmr: false,
       },
       appType: 'spa',
     });

@@ -5,6 +5,7 @@ import { userService } from '../services/userService';
 import { auditLogService } from '../services/auditLogService';
 import { Profile, UserRole, AuthUser } from '../types';
 import { translateSupabaseError } from '../utils/errorHandling';
+import { getUserDepartmentIds } from '../utils/formatters';
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -87,7 +88,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         if (data) {
-          return data as any;
+          const deptIds = getUserDepartmentIds(data as any);
+          return { ...(data as any), department_ids: deptIds };
         }
       }
 
@@ -100,7 +102,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const found = json.data.find(
               (p: any) => p.id === userId || (email && p.email?.toLowerCase() === email.toLowerCase())
             );
-            if (found) return found;
+            if (found) {
+              const deptIds = getUserDepartmentIds(found);
+              return { ...found, department_ids: deptIds };
+            }
           }
         }
       } catch {
@@ -115,7 +120,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         status: 'active',
       } as any);
 
-      if (localUser) return localUser;
+      if (localUser) {
+        const deptIds = getUserDepartmentIds(localUser);
+        return { ...localUser, department_ids: deptIds };
+      }
 
       // If matching by email
       const all = localStore.getProfiles({ id: userId, role: 'ADMIN', status: 'active' } as any);
@@ -123,7 +131,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!matched && email && (email.toLowerCase() === 'ducminh1973@gmail.com' || email.toLowerCase().includes('ducminh'))) {
         matched = all.find((p) => p.id === 'a5555555-5555-5555-5555-555555555555' || p.id === 'u5555555-5555-5555-5555-555555555555' || p.email?.toLowerCase() === 'ducminh1973@gmail.com');
       }
-      return matched || null;
+      if (matched) {
+        const deptIds = getUserDepartmentIds(matched);
+        return { ...matched, department_ids: deptIds };
+      }
+      return null;
     } catch (e) {
       console.error('Error fetching user profile:', e);
       return null;

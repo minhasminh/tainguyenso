@@ -9,7 +9,7 @@ import { ensureSupabaseConfigLoaded } from '../lib/supabase/client';
 import { useToast } from '../hooks/useToast';
 import { UserAvatar } from '../components/UserAvatar';
 import { ConfirmationDialog } from '../components/ConfirmationDialog';
-import { getRoleInfo, getStatusInfo, formatDateTime } from '../utils/formatters';
+import { getRoleInfo, getStatusInfo, formatDateTime, getUserDepartmentIds } from '../utils/formatters';
 import { Profile, Department, Subject, UserRole, UserStatus } from '../types';
 import {
   Users,
@@ -234,9 +234,7 @@ export function AdminUsersPage() {
   // Open Edit Modal
   const handleOpenEdit = (user: Profile) => {
     setEditingUser(user);
-    const userDepts = user.department_ids && user.department_ids.length > 0
-      ? user.department_ids
-      : (user.department_id ? [user.department_id] : []);
+    const userDepts = getUserDepartmentIds(user);
 
     setFormData({
       full_name: user.full_name,
@@ -284,6 +282,11 @@ export function AdminUsersPage() {
       toast.error('Chỉ Quản trị viên (ADMIN) mới có quyền bổ nhiệm hoặc chỉnh sửa vai trò Quản trị viên.');
       return;
     }
+    if (newRole === 'VICE_PRINCIPAL') {
+      handleOpenEdit({ ...user, role: 'VICE_PRINCIPAL' });
+      toast.info('Vui lòng chọn các tổ chuyên môn phân công phụ trách cho Phó hiệu trưởng.');
+      return;
+    }
     setActionLoading(true);
     try {
       await userService.updateProfile(user.id, { role: newRole }, callerProfile);
@@ -313,7 +316,7 @@ export function AdminUsersPage() {
 
     try {
       const deptsToSave = formData.role === 'VICE_PRINCIPAL'
-        ? formData.department_ids
+        ? (formData.department_ids && formData.department_ids.length > 0 ? formData.department_ids : (formData.department_id ? [formData.department_id] : []))
         : (formData.department_id ? [formData.department_id] : []);
 
       const updates: Partial<Profile> = {
@@ -323,6 +326,12 @@ export function AdminUsersPage() {
         department_ids: deptsToSave,
         subject_id: formData.subject_id || null,
       };
+
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(`user_department_ids_${editingUser.id}`, JSON.stringify(deptsToSave));
+        } catch {}
+      }
 
       if (canManageUsers) {
         if (!isAdmin && formData.role === 'ADMIN' && editingUser.role !== 'ADMIN') {
@@ -433,7 +442,7 @@ export function AdminUsersPage() {
 
     try {
       const deptsToSave = formData.role === 'VICE_PRINCIPAL'
-        ? formData.department_ids
+        ? (formData.department_ids && formData.department_ids.length > 0 ? formData.department_ids : (formData.department_id ? [formData.department_id] : []))
         : (formData.department_id ? [formData.department_id] : []);
 
       const created = await userService.createProfile(
@@ -449,6 +458,12 @@ export function AdminUsersPage() {
         callerProfile,
         finalPassword
       );
+
+      if (typeof window !== 'undefined' && created?.id) {
+        try {
+          localStorage.setItem(`user_department_ids_${created.id}`, JSON.stringify(deptsToSave));
+        } catch {}
+      }
 
       const dept = departments.find((d) => d.id === (deptsToSave[0] || formData.department_id));
       const sub = subjects.find((s) => s.id === formData.subject_id);
@@ -714,25 +729,36 @@ export function AdminUsersPage() {
 
                       {/* Department */}
                       <td className="py-3 px-4 font-medium text-slate-800">
-                        {user.role === 'VICE_PRINCIPAL' && user.department_ids && user.department_ids.length > 1 ? (
-                          <div className="flex flex-wrap gap-1 max-w-xs">
-                            {departments
-                              .filter((d) => user.department_ids?.includes(d.id))
-                              .map((d) => (
-                                <span
-                                  key={d.id}
-                                  className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-200"
-                                >
-                                  {d.name}
+                        {(() => {
+                          const userDepts = getUserDepartmentIds(user);
+                          if (user.role === 'VICE_PRINCIPAL' && userDepts.length > 1) {
+                            return (
+                              <div className="flex flex-col gap-1 max-w-xs">
+                                <div className="flex flex-wrap gap-1">
+                                  {departments
+                                    .filter((d) => userDepts.includes(d.id))
+                                    .map((d) => (
+                                      <span
+                                        key={d.id}
+                                        className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-200"
+                                      >
+                                        {d.name}
+                                      </span>
+                                    ))}
+                                </div>
+                                <span className="text-[10px] text-indigo-600 font-semibold">
+                                  Phụ trách {departments.filter((d) => userDepts.includes(d.id)).length} tổ
                                 </span>
-                              ))}
-                          </div>
-                        ) : (
-                          user.department?.name ||
-                          departments.find((d) => d.id === user.department_id)?.name || (
-                            <span className="text-slate-400">—</span>
-                          )
-                        )}
+                              </div>
+                            );
+                          }
+                          return (
+                            user.department?.name ||
+                            departments.find((d) => d.id === user.department_id || (userDepts[0] && d.id === userDepts[0]))?.name || (
+                              <span className="text-slate-400">—</span>
+                            )
+                          );
+                        })()}
                       </td>
 
                       {/* Subject */}
@@ -1080,7 +1106,19 @@ export function AdminUsersPage() {
                       <select
                         value={formData.role}
                         disabled={!isAdmin && editingUser.role === 'ADMIN'}
-                        onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
+                        onChange={(e) => {
+                          const newRole = e.target.value as UserRole;
+                          let nextDeptIds = formData.department_ids || [];
+                          if (newRole === 'VICE_PRINCIPAL' && nextDeptIds.length === 0 && formData.department_id) {
+                            nextDeptIds = [formData.department_id];
+                          }
+                          setFormData({
+                            ...formData,
+                            role: newRole,
+                            department_ids: nextDeptIds,
+                            department_id: nextDeptIds[0] || formData.department_id || '',
+                          });
+                        }}
                         className="w-full px-3 py-2 bg-indigo-50/40 border border-indigo-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 font-semibold text-slate-800 disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         <option value="TEACHER">Giáo viên (TEACHER)</option>
@@ -1451,7 +1489,19 @@ export function AdminUsersPage() {
                   <label className="block font-semibold text-slate-700 mb-1">Vai trò phân cấp</label>
                   <select
                     value={formData.role}
-                    onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
+                    onChange={(e) => {
+                      const newRole = e.target.value as UserRole;
+                      let nextDeptIds = formData.department_ids || [];
+                      if (newRole === 'VICE_PRINCIPAL' && nextDeptIds.length === 0 && formData.department_id) {
+                        nextDeptIds = [formData.department_id];
+                      }
+                      setFormData({
+                        ...formData,
+                        role: newRole,
+                        department_ids: nextDeptIds,
+                        department_id: nextDeptIds[0] || formData.department_id || '',
+                      });
+                    }}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 font-semibold"
                   >
                     <option value="TEACHER">Giáo viên (TEACHER)</option>
