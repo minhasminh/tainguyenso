@@ -373,8 +373,13 @@ function sanitizeServerSubjId(id?: string | null): string | null {
 // Persistent user-department mapping (for multi-department assignment such as Vice Principal)
 const USER_DEPARTMENTS_FILE = path.join(__dirname, '.user_departments.json');
 let userDepartmentsMap: Record<string, string[]> = {
+  // Thầy Nguyễn Văn Sung: Tổ 1-2-3
   'a2222222-2222-2222-2222-222222222222': [
-    'd1111111-1111-1111-1111-111111111111',
+    'd4444444-4444-4444-4444-444444444444',
+  ],
+  // Thầy Nguyễn Văn Dũng: Tổ Tiếng Anh - GDTC và Tổ Khoa học xã hội
+  'afaac15d-7aef-426b-a1c1-7c8bb0490c5d': [
+    'd3333333-3333-3333-3333-333333333333',
     'd2222222-2222-2222-2222-222222222222',
   ],
 };

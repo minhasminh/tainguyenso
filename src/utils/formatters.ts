@@ -574,14 +574,21 @@ export function getUserDepartmentIds(
     } catch {}
   }
 
-  // 5. Default multi-department fallback for Vice Principal demo account
-  // (bgh.hieupho@thcs.edu.vn - phụ trách cả Tổ Khoa học Tự nhiên & Tổ Khoa học Xã hội)
+  // 5. Default multi-department fallbacks for Vice Principals
   if (
-    profile.id === 'a2222222-2222-2222-2222-222222222222' ||
-    (profile.email && profile.email.toLowerCase() === 'bgh.hieupho@thcs.edu.vn')
+    profile.id === 'afaac15d-7aef-426b-a1c1-7c8bb0490c5d' ||
+    (profile.email && profile.email.toLowerCase() === 'dungdiep101078@gmail.com')
   ) {
-    ids.add('d1111111-1111-1111-1111-111111111111'); // Tổ Khoa học tự nhiên
+    ids.add('d3333333-3333-3333-3333-333333333333'); // Tổ Tiếng Anh - GDTC
     ids.add('d2222222-2222-2222-2222-222222222222'); // Tổ Khoa học xã hội
+  } else if (
+    profile.id === 'a2222222-2222-2222-2222-222222222222' ||
+    (profile.email && profile.email.toLowerCase() === 'nvsung_loi2.thqdien@hue.edu.vn')
+  ) {
+    ids.add('d4444444-4444-4444-4444-444444444444'); // Tổ 1-2-3
+  } else if (profile.email && profile.email.toLowerCase() === 'bgh.hieupho@thcs.edu.vn') {
+    ids.add('d1111111-1111-1111-1111-111111111111'); // Demo account
+    ids.add('d2222222-2222-2222-2222-222222222222');
   }
 
   return Array.from(ids);
