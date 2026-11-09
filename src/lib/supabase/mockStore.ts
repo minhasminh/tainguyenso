@@ -101,9 +101,9 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
   },
   {
     id: 'a2222222-2222-2222-2222-222222222222',
-    email: 'bgh.hieupho@thcs.edu.vn',
-    passwordDescription: 'bgh123 (demo)',
-    full_name: 'Trần Thị Bích (Phó Hiệu trưởng)',
+    email: 'nvsung_loi2.thqdien@hue.edu.vn',
+    passwordDescription: 'Giaovien@2026 (demo)',
+    full_name: 'Nguyễn Văn Sung',
     role: 'VICE_PRINCIPAL',
     status: 'active',
     department_id: 'd5555555-5555-5555-5555-555555555555',
@@ -518,6 +518,34 @@ export class MockDatabaseStore {
           minhProf.email = 'ducminh1973@gmail.com';
           minhProf.status = 'active';
         }
+
+        // Always ensure Thầy Nguyễn Văn Sung (nvsung_loi2.thqdien@hue.edu.vn) is active and assigned to Tổ 4-5
+        this.userPasswords['nvsung_loi2.thqdien@hue.edu.vn'] = 'Giaovien@2026';
+        this.userPasswords['a2222222-2222-2222-2222-222222222222'] = 'Giaovien@2026';
+        this.userPasswords['bgh123'] = 'Giaovien@2026';
+
+        const sungProf = this.profiles.find(
+          (p) => p.id === 'a2222222-2222-2222-2222-222222222222' || p.email?.toLowerCase() === 'nvsung_loi2.thqdien@hue.edu.vn' || p.email?.toLowerCase() === 'bgh.hieupho@thcs.edu.vn'
+        );
+        if (sungProf) {
+          sungProf.id = 'a2222222-2222-2222-2222-222222222222';
+          sungProf.email = 'nvsung_loi2.thqdien@hue.edu.vn';
+          sungProf.full_name = 'Nguyễn Văn Sung';
+          sungProf.role = 'VICE_PRINCIPAL';
+          sungProf.status = 'active';
+          sungProf.department_id = 'd5555555-5555-5555-5555-555555555555'; // Tổ 4-5
+          sungProf.department_ids = ['d5555555-5555-5555-5555-555555555555'];
+        }
+
+        // Completely purge sunggv@gmail.com and phonglinh1978@gmail.com from mock profiles & credentials
+        this.profiles = this.profiles.filter(
+          (p) =>
+            p.email?.toLowerCase() !== 'sunggv@gmail.com' &&
+            p.email?.toLowerCase() !== 'phonglinh1978@gmail.com' &&
+            !p.email?.toLowerCase().includes('deleted.local')
+        );
+        delete this.userPasswords['sunggv@gmail.com'];
+        delete this.userPasswords['phonglinh1978@gmail.com'];
 
         // Ensure updated Google Form URL & Sheet ID
         if (
@@ -1059,6 +1087,16 @@ export class MockDatabaseStore {
     } else {
       visible = this.profiles.filter((p) => p.id === callerProfile.id);
     }
+
+    visible = visible.filter((p) => {
+      const email = (p.email || '').toLowerCase().trim();
+      return (
+        email !== 'sunggv@gmail.com' &&
+        email !== 'phonglinh1978@gmail.com' &&
+        !email.includes('deleted.local') &&
+        !(p.full_name || '').startsWith('[Đã xóa]')
+      );
+    });
 
     return visible.map((p) => this.attachRelations(p));
   }
@@ -2531,9 +2569,22 @@ export class MockDatabaseStore {
     }
 
     // 5. Look up Teacher in profiles or auto-provision from Google Form
-    let teacher = this.profiles.find((p) => p.email && p.email.toLowerCase() === cleanEmail);
-    if (!teacher && (cleanEmail === 'ducminh1973@gmail.com' || cleanEmail.includes('ducminh') || cleanEmail.includes('vuducminh'))) {
+    let lookupEmail = cleanEmail;
+    if (cleanEmail === 'sunggv@gmail.com') {
+      lookupEmail = 'nvsung_loi2.thqdien@hue.edu.vn';
+    } else if (cleanEmail === 'phonglinh1978@gmail.com') {
+      lookupEmail = 'nplinh_ttnhan.thcsqdien@hue.edu.vn';
+    }
+
+    let teacher = this.profiles.find((p) => p.email && p.email.toLowerCase() === lookupEmail);
+    if (!teacher && (lookupEmail === 'ducminh1973@gmail.com' || lookupEmail.includes('ducminh') || lookupEmail.includes('vuducminh'))) {
       teacher = this.profiles.find((p) => p.id === 'a5555555-5555-5555-5555-555555555555' || p.id === 'u5555555-5555-5555-5555-555555555555' || p.email === 'giaovien.tin@thcs.edu.vn');
+    }
+    if (!teacher && lookupEmail === 'nplinh_ttnhan.thcsqdien@hue.edu.vn') {
+      teacher = this.profiles.find((p) => p.email?.toLowerCase().includes('nplinh') || p.full_name?.includes('Phong Linh'));
+    }
+    if (!teacher && lookupEmail === 'nvsung_loi2.thqdien@hue.edu.vn') {
+      teacher = this.profiles.find((p) => p.id === 'a2222222-2222-2222-2222-222222222222' || p.email?.toLowerCase().includes('nvsung'));
     }
 
     if (!teacher) {

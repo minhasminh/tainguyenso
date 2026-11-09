@@ -298,11 +298,21 @@ async function hydrateGfFromSupabase(): Promise<void> {
         const subjObj = Array.isArray(itemAny.subject) ? itemAny.subject[0] : itemAny.subject;
         const grdObj = Array.isArray(itemAny.grade) ? itemAny.grade[0] : itemAny.grade;
 
+        let itemEmail = (ownerObj?.email || '').toLowerCase().trim();
+        let itemTeacherName = ownerObj?.full_name || '';
+        if (itemEmail === 'sunggv@gmail.com' || itemEmail.includes('sunggv')) {
+          itemEmail = 'nvsung_loi2.thqdien@hue.edu.vn';
+          itemTeacherName = 'Nguyễn Văn Sung';
+        } else if (itemEmail === 'phonglinh1978@gmail.com' || itemEmail.includes('phonglinh1978')) {
+          itemEmail = 'nplinh_ttnhan.thcsqdien@hue.edu.vn';
+          itemTeacherName = 'Nguyễn Phong Linh';
+        }
+
         const rec: SyncedSubmissionRecord = {
           id: `db_${item.id}`,
           submission_id: subId,
-          teacher_email: (ownerObj?.email || '').toLowerCase().trim(),
-          teacher_name: ownerObj?.full_name || '',
+          teacher_email: itemEmail,
+          teacher_name: itemTeacherName,
           title: item.title,
           description: item.description,
           resource_type: item.resource_type,
@@ -472,6 +482,10 @@ function loadUserDepartments(): void {
         userDepartmentsMap = { ...userDepartmentsMap, ...parsed };
       }
     }
+    // Ensure Thầy Nguyễn Văn Sung is strictly assigned to Tổ 4-5
+    userDepartmentsMap['a2222222-2222-2222-2222-222222222222'] = ['d5555555-5555-5555-5555-555555555555'];
+    delete userDepartmentsMap['09e31258-800e-4fe2-8d80-82646345d7e2'];
+    saveUserDepartments();
   } catch {}
 }
 
@@ -507,7 +521,21 @@ app.get('/api/users', async (_req: Request, res: Response) => {
         .order('created_at', { ascending: false });
 
       if (!error && data) {
-        const enriched = data.map((u: any) => {
+        const filtered = data.filter((u: any) => {
+          const email = (u.email || '').toLowerCase().trim();
+          if (
+            email === 'sunggv@gmail.com' ||
+            email === 'phonglinh1978@gmail.com' ||
+            email.includes('deleted.local') ||
+            u.status === 'deleted' ||
+            (u.full_name || '').startsWith('[Đã xóa]')
+          ) {
+            return false;
+          }
+          return true;
+        });
+
+        const enriched = filtered.map((u: any) => {
           const stored = userDepartmentsMap[u.id];
           const deptIds = stored && stored.length > 0 ? stored : (u.department_id ? [u.department_id] : []);
           return {
@@ -840,14 +868,22 @@ async function handleSyncSubmission(req: Request, res: Response) {
       payload['Địa chỉ email'] ||
       ''
     ).toString().trim();
-    const teacherEmail = rawEmail.toLowerCase();
-    const teacherName = (
+    let teacherEmail = rawEmail.toLowerCase();
+    let teacherName = (
       payload.teacher_name ||
       payload.name ||
       payload['Họ và tên'] ||
       payload['Họ và tên giáo viên'] ||
       ''
     ).toString().trim();
+
+    if (teacherEmail === 'sunggv@gmail.com') {
+      teacherEmail = 'nvsung_loi2.thqdien@hue.edu.vn';
+      teacherName = 'Nguyễn Văn Sung';
+    } else if (teacherEmail === 'phonglinh1978@gmail.com') {
+      teacherEmail = 'nplinh_ttnhan.thcsqdien@hue.edu.vn';
+      teacherName = 'Nguyễn Phong Linh';
+    }
     const title = (
       payload.title ||
       payload['Tên tài nguyên'] ||
@@ -1273,8 +1309,16 @@ async function syncGoogleSheetSubmissions(sheetId: string = '1gH6zehWNY4pWn9bEzs
     const academicYear = getVal(['Năm học', 'Niên khóa']) || '2026–2027';
     const resourceType = getVal(['Loại tài nguyên', 'Loại học liệu', 'Hình thức']) || 'Học liệu số';
     const uploadUrl = getVal(['Tải tài liệu lên', 'Đường link', 'Tệp đính kèm', 'Đường dẫn', 'Link']);
-    const email = (getVal(['Địa chỉ email', 'Email', 'Email giáo viên', 'Email của bạn']) || cleanEmail).toLowerCase().trim();
-    const teacherName = getVal(['Họ và tên giáo viên', 'Họ và tên', 'Tên giáo viên', 'Họ tên']) || (email.includes('ducminh') ? 'Vũ Đức Minh' : 'Giáo viên');
+    let email = (getVal(['Địa chỉ email', 'Email', 'Email giáo viên', 'Email của bạn']) || cleanEmail).toLowerCase().trim();
+    let teacherName = getVal(['Họ và tên giáo viên', 'Họ và tên', 'Tên giáo viên', 'Họ tên']) || (email.includes('ducminh') ? 'Vũ Đức Minh' : 'Giáo viên');
+
+    if (email === 'sunggv@gmail.com') {
+      email = 'nvsung_loi2.thqdien@hue.edu.vn';
+      teacherName = 'Nguyễn Văn Sung';
+    } else if (email === 'phonglinh1978@gmail.com') {
+      email = 'nplinh_ttnhan.thcsqdien@hue.edu.vn';
+      teacherName = 'Nguyễn Phong Linh';
+    }
 
     // Skip empty submissions (where title is blank)
     if (!title) {
