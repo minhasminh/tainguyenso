@@ -585,7 +585,7 @@ export function getUserDepartmentIds(
     profile.id === 'a2222222-2222-2222-2222-222222222222' ||
     (profile.email && profile.email.toLowerCase() === 'nvsung_loi2.thqdien@hue.edu.vn')
   ) {
-    ids.add('d4444444-4444-4444-4444-444444444444'); // Tổ 1-2-3
+    ids.add('d5555555-5555-5555-5555-555555555555'); // Tổ 4-5
   } else if (profile.email && profile.email.toLowerCase() === 'bgh.hieupho@thcs.edu.vn') {
     ids.add('d1111111-1111-1111-1111-111111111111'); // Demo account
     ids.add('d2222222-2222-2222-2222-222222222222');

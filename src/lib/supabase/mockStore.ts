@@ -106,9 +106,9 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
     full_name: 'Trần Thị Bích (Phó Hiệu trưởng)',
     role: 'VICE_PRINCIPAL',
     status: 'active',
-    department_id: 'd4444444-4444-4444-4444-444444444444',
+    department_id: 'd5555555-5555-5555-5555-555555555555',
     department_ids: [
-      'd4444444-4444-4444-4444-444444444444', // Tổ 1-2-3
+      'd5555555-5555-5555-5555-555555555555', // Tổ 4-5
     ],
     subject_id: 'c1111111-1111-1111-1111-111111111111',
     avatar_url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80',
