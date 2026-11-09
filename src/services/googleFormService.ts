@@ -273,14 +273,14 @@ export const googleFormService = {
         if (res.ok) {
           const json = await res.json();
           if (json.success && Array.isArray(json.data)) {
+            const rawResources = store.getRawResources();
+            const existingSubIds = new Set(rawResources.map((r) => r.google_form_submission_id).filter(Boolean));
+            const newPayloads = [];
+
             for (const item of json.data) {
               if (item.sync_status === 'synced' && item.submission_id) {
-                // Check if already in store
-                const exists = store.getRawResources().some(
-                  (r) => r.google_form_submission_id === item.submission_id
-                );
-                if (!exists) {
-                  store.syncGoogleFormSubmission({
+                if (!existingSubIds.has(item.submission_id)) {
+                  newPayloads.push({
                     submission_id: item.submission_id,
                     submitted_at: item.received_at,
                     teacher_email: item.teacher_email,
@@ -299,6 +299,10 @@ export const googleFormService = {
                   importedCount++;
                 }
               }
+            }
+
+            if (newPayloads.length > 0) {
+              store.syncGoogleFormSubmissionsBatch(newPayloads);
             }
           }
         }
@@ -319,9 +323,7 @@ export const googleFormService = {
               .eq('source_type', 'google_form');
 
             if (liveGfResources && liveGfResources.length > 0) {
-              for (const r of liveGfResources) {
-                store.syncResourceFromLive(r as any);
-              }
+              store.syncResourcesFromLiveBatch(liveGfResources as any);
             }
           } catch {}
         }
@@ -437,32 +439,56 @@ export const googleFormService = {
               : (Array.isArray(json.synced_items) ? json.synced_items : []);
 
             if (json.success && itemsToSync.length > 0) {
-              // Sync each item into local store
-              for (const item of itemsToSync) {
-                store.syncGoogleFormSubmission({
-                  submission_id: item.submission_id,
-                  submitted_at: item.received_at,
-                  teacher_email: item.teacher_email,
-                  teacher_name: item.teacher_name,
-                  title: item.title,
-                  description: item.description,
-                  department: item.department,
-                  subject: item.subject,
-                  grade: item.grade,
-                  resource_type: item.resource_type,
-                  topic: item.topic,
-                  academic_year: item.academic_year,
-                  resource_url: item.resource_url,
-                  drive_file_id: item.drive_file_id,
-                });
+              // Batch sync items into local store in a single storage save
+              store.syncGoogleFormSubmissionsBatch(itemsToSync.map((item: any) => ({
+                submission_id: item.submission_id,
+                submitted_at: item.received_at,
+                teacher_email: item.teacher_email,
+                teacher_name: item.teacher_name,
+                title: item.title,
+                description: item.description,
+                department: item.department,
+                subject: item.subject,
+                grade: item.grade,
+                resource_type: item.resource_type,
+                topic: item.topic,
+                academic_year: item.academic_year,
+                resource_url: item.resource_url,
+                drive_file_id: item.drive_file_id,
+              })));
+
+              // Also hydrate directly from Supabase Cloud to ensure real UUIDs
+              const client = getSupabaseClient();
+              if (client) {
+                try {
+                  const { data: liveGfResources } = await client
+                    .from('resources')
+                    .select(`
+                      *,
+                      owner:profiles!resources_owner_id_fkey(id, full_name, email, role),
+                      department:departments(id, name),
+                      subject:subjects(id, name, code),
+                      grade:grades(id, name)
+                    `)
+                    .eq('source_type', 'google_form');
+
+                  if (liveGfResources && liveGfResources.length > 0) {
+                    store.syncResourcesFromLiveBatch(liveGfResources as any);
+                  }
+                } catch {}
               }
 
               const totalRows = json.total_rows || itemsToSync.length;
-              const syncedCount = json.synced_count !== undefined ? json.synced_count : itemsToSync.length;
+              const syncedCount = json.synced_count !== undefined ? json.synced_count : 0;
+              const alreadySyncedCount = json.already_synced_count !== undefined ? json.already_synced_count : (totalRows - syncedCount);
 
               // Deduplicate resources in local store and sync state
               const dedup = store.deduplicateResources(callerProfile);
               const totalDuplicates = Math.max(0, (json.duplicate_count || 0) + dedup.removedCount);
+
+              const defaultMsg = syncedCount > 0
+                ? `Đồng bộ thành công: ${syncedCount} tài nguyên mới, ${alreadySyncedCount} học liệu đã có sẵn (Tổng cộng: ${dedup.remainingCount} học liệu).`
+                : `Đồng bộ hoàn tất: Toàn bộ ${totalRows} tài nguyên Google Form đã được cập nhật đầy đủ (Hiện có ${dedup.remainingCount} học liệu chuẩn).`;
 
               const backendRes = {
                 success: true,
@@ -472,7 +498,7 @@ export const googleFormService = {
                 skippedCount: json.skipped_count || 0,
                 removedCount: dedup.removedCount,
                 remainingCount: dedup.remainingCount,
-                message: `Đồng bộ hoàn tất: ${syncedCount} mới, đã loại bỏ ${totalDuplicates} tài nguyên trùng lặp (Tổng cộng: ${dedup.remainingCount} học liệu).`,
+                message: json.message || defaultMsg,
                 syncedItems: itemsToSync,
               };
               lastSyncFromSheetTime = Date.now();

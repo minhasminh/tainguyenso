@@ -250,13 +250,92 @@ function persistCache() {
     deduped.forEach((it) => recentSyncSubmissions.push(it));
     fs.writeFileSync(
       SYNC_CACHE_FILE,
-      JSON.stringify(recentSyncSubmissions.slice(0, 200), null, 2),
+      JSON.stringify(recentSyncSubmissions.slice(0, 1500), null, 2),
       'utf-8'
     );
   } catch {
     // ignore
   }
 }
+
+/**
+ * Hydrate recentSyncSubmissions directly from Supabase Cloud
+ */
+async function hydrateGfFromSupabase(): Promise<void> {
+  if (!supabaseClient) return;
+  try {
+    const { data, error } = await supabaseClient
+      .from('resources')
+      .select(`
+        id,
+        google_form_submission_id,
+        google_drive_file_id,
+        title,
+        description,
+        resource_type,
+        resource_url,
+        school_year,
+        created_at,
+        status,
+        owner:profiles!resources_owner_id_fkey(id, full_name, email),
+        department:departments(name),
+        subject:subjects(name),
+        grade:grades(name)
+      `)
+      .eq('source_type', 'google_form')
+      .order('created_at', { ascending: false });
+
+    if (!error && Array.isArray(data) && data.length > 0) {
+      for (const item of data) {
+        const subId = item.google_form_submission_id || `res_${item.id}`;
+        submissionIdsSet.add(subId);
+        const existingIdx = recentSyncSubmissions.findIndex(
+          (s) => s.submission_id === subId || s.resource_id === item.id
+        );
+        const itemAny = item as any;
+        const ownerObj = Array.isArray(itemAny.owner) ? itemAny.owner[0] : itemAny.owner;
+        const deptObj = Array.isArray(itemAny.department) ? itemAny.department[0] : itemAny.department;
+        const subjObj = Array.isArray(itemAny.subject) ? itemAny.subject[0] : itemAny.subject;
+        const grdObj = Array.isArray(itemAny.grade) ? itemAny.grade[0] : itemAny.grade;
+
+        const rec: SyncedSubmissionRecord = {
+          id: `db_${item.id}`,
+          submission_id: subId,
+          teacher_email: (ownerObj?.email || '').toLowerCase().trim(),
+          teacher_name: ownerObj?.full_name || '',
+          title: item.title,
+          description: item.description,
+          resource_type: item.resource_type,
+          department: deptObj?.name,
+          subject: subjObj?.name,
+          grade: grdObj?.name,
+          academic_year: item.school_year || '2026–2027',
+          resource_url: item.resource_url,
+          drive_file_id: item.google_drive_file_id,
+          status: 'submitted',
+          sync_status: 'synced',
+          message: 'Đã lưu trong cơ sở dữ liệu Supabase',
+          received_at: item.created_at || new Date().toISOString(),
+          resource_id: item.id,
+        };
+        if (existingIdx >= 0) {
+          recentSyncSubmissions[existingIdx] = rec;
+        } else {
+          recentSyncSubmissions.push(rec);
+        }
+      }
+      persistCache();
+      console.log(`[Supabase] Hydrated ${data.length} google_form resources into sync cache.`);
+    }
+  } catch (err: any) {
+    console.warn('[Supabase] Failed to hydrate google_form resources:', err?.message || err);
+  }
+}
+
+// Initial hydration from Supabase
+setTimeout(() => {
+  hydrateGfFromSupabase();
+}, 1000);
 
 /**
  * Health & Status Endpoint
@@ -934,14 +1013,43 @@ async function handleSyncSubmission(req: Request, res: Response) {
         }
 
         if (dbData?.code === 'TEACHER_NOT_FOUND' || (dbData?.status === 'invalid' && dbData?.message?.includes('chưa được đăng ký'))) {
-          console.error('[SYNC][ERROR] TEACHER_NOT_FOUND: ' + teacherEmail);
-          res.status(404).json({
-            success: false,
-            status: 'failed',
-            code: 'TEACHER_NOT_FOUND',
-            message: 'Email chưa được đăng ký trong hệ thống: ' + teacherEmail,
+          console.log('[SYNC] Auto-provisioning profile for teacher:', teacherEmail);
+          const autoName = teacherName && teacherName.length > 2 ? teacherName : teacherEmail.split('@')[0];
+          const cleanDeptId = sanitizeServerDeptId(department) || 'd1111111-1111-1111-1111-111111111111';
+          const { error: insErr } = await supabaseClient.from('profiles').insert({
+            id: crypto.randomUUID(),
+            email: teacherEmail,
+            full_name: autoName,
+            role: 'TEACHER',
+            status: 'active',
+            department_id: cleanDeptId,
+            password: 'Giaovien@2026',
           });
-          return;
+          if (!insErr) {
+            const { data: retryData } = await supabaseClient.rpc('sync_google_form_resource', {
+              p_payload: {
+                submission_id: submissionId,
+                teacher_email: teacherEmail,
+                teacher_name: autoName,
+                title: title,
+                description: description,
+                department: department,
+                subject: subject,
+                grade: grade,
+                resource_type: resourceType,
+                topic: topic,
+                academic_year: academicYear,
+                resource_url: resourceUrl,
+                google_drive_file_id: driveFileId,
+              },
+              p_secret: providedSecret,
+            });
+            if (retryData?.resource_id) {
+              createdResourceId = retryData.resource_id;
+            }
+          } else {
+            console.error('[SYNC][ERROR] Failed to auto-provision teacher profile:', insErr.message);
+          }
         }
 
         if (dbData?.resource_id) {
@@ -1089,9 +1197,56 @@ async function syncGoogleSheetSubmissions(sheetId: string = '1gH6zehWNY4pWn9bEzs
   const rows = parseCSV(csvText);
   console.log(`[SHEET SYNC] Found ${rows.length} total rows from sheet ${cleanSheetId}`);
 
+  // 1. Pre-fetch existing google_form resources directly from Supabase Cloud
+  const sbSubIdToResId = new Map<string, string>();
+  const sbDriveIdToResId = new Map<string, string>();
+  const sbTitleEmailToResId = new Map<string, string>();
+  const knownTeacherEmails = new Set<string>();
+
+  if (supabaseClient) {
+    try {
+      let page = 0;
+      while (true) {
+        const { data: existingGf, error: gfErr } = await supabaseClient
+          .from('resources')
+          .select('id, google_form_submission_id, google_drive_file_id, title, owner:profiles!resources_owner_id_fkey(email)')
+          .eq('source_type', 'google_form')
+          .range(page * 500, (page + 1) * 500 - 1);
+
+        if (gfErr || !existingGf || existingGf.length === 0) break;
+
+        for (const item of existingGf) {
+          if (item.google_form_submission_id) sbSubIdToResId.set(item.google_form_submission_id, item.id);
+          if (item.google_drive_file_id) sbDriveIdToResId.set(item.google_drive_file_id, item.id);
+          const tNorm = normalizeTitle(item.title);
+          const oEmail = ((item.owner as any)?.email || '').toLowerCase().trim();
+          if (tNorm.length >= 3 && oEmail) {
+            sbTitleEmailToResId.set(`${tNorm}||${oEmail}`, item.id);
+          }
+        }
+
+        if (existingGf.length < 500) break;
+        page++;
+      }
+
+      // Pre-fetch active profiles
+      const { data: profs } = await supabaseClient.from('profiles').select('email');
+      if (profs && Array.isArray(profs)) {
+        for (const p of profs) {
+          if (p.email) knownTeacherEmails.add(p.email.toLowerCase().trim());
+        }
+      }
+      console.log(`[SHEET SYNC] Supabase pre-fetch complete: ${sbSubIdToResId.size} sub_ids, ${sbDriveIdToResId.size} drive_ids, ${knownTeacherEmails.size} profiles`);
+    } catch (fetchErr: any) {
+      console.warn('[SHEET SYNC] Supabase pre-fetch warning:', fetchErr?.message || fetchErr);
+    }
+  }
+
   const syncedItems: any[] = [];
   const duplicateItems: any[] = [];
+  const alreadySyncedItems: any[] = [];
   const skippedItems: any[] = [];
+  let alreadySyncedCount = 0;
   const seenDriveInSheet = new Map<string, string>();
   const seenTitleEmailInSheet = new Map<string, string>();
 
@@ -1100,7 +1255,6 @@ async function syncGoogleSheetSubmissions(sheetId: string = '1gH6zehWNY4pWn9bEzs
     const getVal = (keys: string[]): string => {
       for (const k of keys) {
         if (row[k] !== undefined && row[k] !== null && String(row[k]).trim() !== '') return String(row[k]).trim();
-        // Case-insensitive / trimmed match
         const foundKey = Object.keys(row).find((rk) => rk.trim().toLowerCase() === k.trim().toLowerCase());
         if (foundKey && row[foundKey] && String(row[foundKey]).trim() !== '') return String(row[foundKey]).trim();
       }
@@ -1119,7 +1273,7 @@ async function syncGoogleSheetSubmissions(sheetId: string = '1gH6zehWNY4pWn9bEzs
     const academicYear = getVal(['Năm học', 'Niên khóa']) || '2026–2027';
     const resourceType = getVal(['Loại tài nguyên', 'Loại học liệu', 'Hình thức']) || 'Học liệu số';
     const uploadUrl = getVal(['Tải tài liệu lên', 'Đường link', 'Tệp đính kèm', 'Đường dẫn', 'Link']);
-    const email = (getVal(['Địa chỉ email', 'Email', 'Email giáo viên', 'Email của bạn']) || cleanEmail).toLowerCase();
+    const email = (getVal(['Địa chỉ email', 'Email', 'Email giáo viên', 'Email của bạn']) || cleanEmail).toLowerCase().trim();
     const teacherName = getVal(['Họ và tên giáo viên', 'Họ và tên', 'Tên giáo viên', 'Họ tên']) || (email.includes('ducminh') ? 'Vũ Đức Minh' : 'Giáo viên');
 
     // Skip empty submissions (where title is blank)
@@ -1137,29 +1291,18 @@ async function syncGoogleSheetSubmissions(sheetId: string = '1gH6zehWNY4pWn9bEzs
 
     const safeTime = timestamp.replace(/[^0-9]/g, '_') || `row_${i + 1}`;
     const submissionId = `sheet_${cleanSheetId.substring(0, 8)}_r${i + 1}_${safeTime}`;
-
-    // Deduplication check: Check if this item is a duplicate
     const titleNorm = normalizeTitle(title);
     const keyTitleEmail = titleNorm + '||' + email;
-    const isDriveDup = Boolean(driveFileId && seenDriveInSheet.has(driveFileId));
-    const isTitleEmailDup = Boolean(titleNorm.length >= 3 && seenTitleEmailInSheet.has(keyTitleEmail));
-    const isSubIdDup = submissionIdsSet.has(submissionId);
 
-    // Also check if already present in recentSyncSubmissions
-    const existingInCache = recentSyncSubmissions.find((s) => {
-      if (s.submission_id === submissionId) return true;
-      if (driveFileId && s.drive_file_id && s.drive_file_id === driveFileId) return true;
-      if (titleNorm.length >= 3 && normalizeTitle(s.title) === titleNorm && (s.teacher_email || '').toLowerCase().trim() === email) return true;
-      return false;
-    });
+    // 1. Check duplicate WITHIN this sheet import
+    const isDriveDupInSheet = Boolean(driveFileId && seenDriveInSheet.has(driveFileId));
+    const isTitleEmailDupInSheet = Boolean(titleNorm.length >= 3 && seenTitleEmailInSheet.has(keyTitleEmail));
 
-    if (isDriveDup || isTitleEmailDup || isSubIdDup || existingInCache) {
-      const existingResId = existingInCache?.resource_id || (driveFileId ? seenDriveInSheet.get(driveFileId) : null) || seenTitleEmailInSheet.get(keyTitleEmail);
+    if (isDriveDupInSheet || isTitleEmailDupInSheet) {
       duplicateItems.push({
         submission_id: submissionId,
         title,
-        resource_id: existingResId,
-        reason: isDriveDup ? 'Trùng tệp Google Drive' : 'Trùng tiêu đề và giáo viên',
+        reason: isDriveDupInSheet ? 'Trùng tệp Google Drive trong bảng tính' : 'Trùng tiêu đề và giáo viên trong bảng tính',
       });
       continue;
     }
@@ -1167,11 +1310,79 @@ async function syncGoogleSheetSubmissions(sheetId: string = '1gH6zehWNY4pWn9bEzs
     if (driveFileId) seenDriveInSheet.set(driveFileId, submissionId);
     if (titleNorm.length >= 3) seenTitleEmailInSheet.set(keyTitleEmail, submissionId);
 
+    // 2. Check if ALREADY EXISTS in Supabase Cloud
+    const existingSbResId = sbSubIdToResId.get(submissionId) ||
+      (driveFileId ? sbDriveIdToResId.get(driveFileId) : null) ||
+      (titleNorm.length >= 3 ? sbTitleEmailToResId.get(keyTitleEmail) : null);
+
+    if (existingSbResId) {
+      alreadySyncedCount++;
+      const existingRecord: SyncedSubmissionRecord = {
+        id: `db_${existingSbResId}`,
+        submission_id: submissionId,
+        teacher_email: email,
+        teacher_name: teacherName,
+        title: title,
+        description: description + (className ? ` (Lớp: ${className})` : ''),
+        resource_type: resourceType,
+        department: department,
+        subject: subject,
+        grade: grade,
+        topic: topic,
+        academic_year: academicYear,
+        resource_url: uploadUrl || (driveFileId ? `https://drive.google.com/file/d/${driveFileId}/view` : ''),
+        drive_file_id: driveFileId,
+        status: 'submitted',
+        sync_status: 'synced',
+        message: 'Đã lưu trong hệ thống từ Google Sheet',
+        received_at: timestamp || new Date().toISOString(),
+        resource_id: existingSbResId,
+      };
+
+      const existingIdx = recentSyncSubmissions.findIndex(
+        (s) => s.submission_id === submissionId || s.resource_id === existingSbResId
+      );
+      if (existingIdx >= 0) {
+        recentSyncSubmissions[existingIdx] = existingRecord;
+      } else {
+        recentSyncSubmissions.push(existingRecord);
+      }
+
+      alreadySyncedItems.push({
+        submission_id: submissionId,
+        title,
+        resource_id: existingSbResId,
+      });
+      continue;
+    }
+
+    // 3. New item not yet in Supabase: Provision Teacher if missing and invoke RPC
     let createdResourceId: string | undefined;
 
-    // Call stored procedure sync_google_form_resource on Supabase
     if (supabaseClient) {
       try {
+        // Auto-provision teacher if email not yet registered
+        if (!knownTeacherEmails.has(email)) {
+          console.log('[SHEET SYNC] Auto-provisioning teacher profile for:', email);
+          const autoName = teacherName && teacherName.length > 2 ? teacherName : email.split('@')[0];
+          const cleanDeptId = sanitizeServerDeptId(department) || 'd1111111-1111-1111-1111-111111111111';
+          const newTeacherId = crypto.randomUUID();
+          const { error: insErr } = await supabaseClient.from('profiles').insert({
+            id: newTeacherId,
+            email: email,
+            full_name: autoName,
+            role: 'TEACHER',
+            status: 'active',
+            department_id: cleanDeptId,
+            password: 'Giaovien@2026',
+          });
+          if (!insErr) {
+            knownTeacherEmails.add(email);
+          } else {
+            console.warn('[SHEET SYNC] Profile auto-provision warning:', insErr.message);
+          }
+        }
+
         const { data: dbData, error: dbError } = await supabaseClient.rpc(
           'sync_google_form_resource',
           {
@@ -1197,75 +1408,17 @@ async function syncGoogleSheetSubmissions(sheetId: string = '1gH6zehWNY4pWn9bEzs
 
         if (!dbError && dbData) {
           if (dbData.status === 'duplicate') {
-            const dupRecord: SyncedSubmissionRecord = {
-              id: `sheet_dup_${submissionId}`,
-              submission_id: submissionId,
-              teacher_email: email,
-              teacher_name: teacherName,
-              title: title,
-              description: description + (className ? ` (Lớp: ${className})` : ''),
-              resource_type: resourceType,
-              department: department,
-              subject: subject,
-              grade: grade,
-              topic: topic,
-              academic_year: academicYear,
-              resource_url: uploadUrl || (driveFileId ? `https://drive.google.com/file/d/${driveFileId}/view` : ''),
-              drive_file_id: driveFileId,
-              status: 'submitted',
-              sync_status: 'synced',
-              message: 'Đã lưu trong hệ thống từ Google Sheet',
-              received_at: new Date().toISOString(),
-              resource_id: dbData.resource_id,
-            };
-            const existingIdx = recentSyncSubmissions.findIndex((s) => s.submission_id === submissionId);
-            if (existingIdx >= 0) {
-              recentSyncSubmissions[existingIdx] = dupRecord;
-            } else {
-              recentSyncSubmissions.unshift(dupRecord);
-            }
-            syncedItems.push(dupRecord);
-            duplicateItems.push({ submission_id: submissionId, title, resource_id: dbData.resource_id });
-            continue;
-          }
-          if (dbData.resource_id) {
+            alreadySyncedCount++;
+            createdResourceId = dbData.resource_id;
+            alreadySyncedItems.push({ submission_id: submissionId, title, resource_id: dbData.resource_id });
+          } else if (dbData.resource_id) {
             createdResourceId = dbData.resource_id;
           }
         } else if (dbError) {
-          console.warn('[SHEET SYNC] RPC warning:', dbError.message);
+          console.warn('[SHEET SYNC] RPC warning on row', i + 1, dbError.message);
         }
-      } catch (dbErr) {
-        console.error('[SHEET SYNC] Error calling sync_google_form_resource:', dbErr);
-      }
-    } else {
-      if (submissionIdsSet.has(submissionId)) {
-        const existing = recentSyncSubmissions.find((s) => s.submission_id === submissionId);
-        duplicateItems.push({ submission_id: submissionId, title, resource_id: existing?.resource_id });
-        if (!existing) {
-          const dupRecord: SyncedSubmissionRecord = {
-            id: `sheet_dup_${submissionId}`,
-            submission_id: submissionId,
-            teacher_email: email,
-            teacher_name: teacherName,
-            title: title,
-            description: description + (className ? ` (Lớp: ${className})` : ''),
-            resource_type: resourceType,
-            department: department,
-            subject: subject,
-            grade: grade,
-            topic: topic,
-            academic_year: academicYear,
-            resource_url: uploadUrl || (driveFileId ? `https://drive.google.com/file/d/${driveFileId}/view` : ''),
-            drive_file_id: driveFileId,
-            status: 'submitted',
-            sync_status: 'synced',
-            message: 'Đã lưu trong hệ thống từ Google Sheet',
-            received_at: new Date().toISOString(),
-            resource_id: `res_sheet_dup_${i}`,
-          };
-          recentSyncSubmissions.push(dupRecord);
-        }
-        continue;
+      } catch (dbErr: any) {
+        console.error('[SHEET SYNC] Error calling sync_google_form_resource on row', i + 1, dbErr?.message || dbErr);
       }
     }
 
@@ -1273,6 +1426,11 @@ async function syncGoogleSheetSubmissions(sheetId: string = '1gH6zehWNY4pWn9bEzs
     if (!createdResourceId) {
       createdResourceId = `res_sheet_${Date.now()}_${i}`;
     }
+
+    // Register in lookup maps
+    sbSubIdToResId.set(submissionId, createdResourceId);
+    if (driveFileId) sbDriveIdToResId.set(driveFileId, createdResourceId);
+    if (titleNorm.length >= 3) sbTitleEmailToResId.set(keyTitleEmail, createdResourceId);
 
     const record: SyncedSubmissionRecord = {
       id: `sheet_sub_${Date.now()}_${i}`,
@@ -1292,7 +1450,7 @@ async function syncGoogleSheetSubmissions(sheetId: string = '1gH6zehWNY4pWn9bEzs
       status: 'submitted',
       sync_status: 'synced',
       message: 'Đồng bộ trực tiếp từ Google Sheet',
-      received_at: new Date().toISOString(),
+      received_at: timestamp || new Date().toISOString(),
       resource_id: createdResourceId,
     };
 
@@ -1307,16 +1465,25 @@ async function syncGoogleSheetSubmissions(sheetId: string = '1gH6zehWNY4pWn9bEzs
 
   persistCache();
 
+  const finalMsg = syncedItems.length > 0
+    ? `Đồng bộ thành công: Đã thêm ${syncedItems.length} tài nguyên mới, ${alreadySyncedCount} học liệu đã lưu trước đó, loại bỏ ${duplicateItems.length} mục trùng lặp. Tổng cộng: ${recentSyncSubmissions.length} tài nguyên Google Form.`
+    : `Đồng bộ hoàn tất: Toàn bộ ${alreadySyncedCount} học liệu từ Google Sheet đã được lưu an toàn (đã loại bỏ ${duplicateItems.length} mục trùng lặp). Tổng cộng: ${recentSyncSubmissions.length} học liệu.`;
+
+  console.log(`[SHEET SYNC] Completed: ${syncedItems.length} newly synced, ${alreadySyncedCount} already in Supabase, ${duplicateItems.length} duplicates handled.`);
+
   return {
     success: true,
     sheet_id: cleanSheetId,
     total_rows: rows.length,
     synced_count: syncedItems.length,
+    already_synced_count: alreadySyncedCount,
     duplicate_count: duplicateItems.length,
     skipped_count: skippedItems.length,
     synced_items: syncedItems,
+    already_synced_items: alreadySyncedItems,
     duplicates: duplicateItems,
     all_items: recentSyncSubmissions,
+    message: finalMsg,
   };
 }
 

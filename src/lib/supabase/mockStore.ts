@@ -2385,7 +2385,8 @@ export class MockDatabaseStore {
    */
   public syncGoogleFormSubmission(
     payload: GoogleFormSubmissionPayload,
-    syncSecret?: string
+    syncSecret?: string,
+    skipSave: boolean = false
   ): {
     success: boolean;
     status: 'synced' | 'duplicate' | 'failed' | 'invalid';
@@ -2411,7 +2412,7 @@ export class MockDatabaseStore {
         processed_at: nowIso,
       };
       this.resourceSyncLogs.unshift(logItem);
-      this.saveToStorage();
+      if (!skipSave) this.saveToStorage();
       return { success: false, status: 'invalid', message: 'Mã submission_id không được để trống.', log_id: logId };
     }
 
@@ -2433,7 +2434,7 @@ export class MockDatabaseStore {
         processed_at: nowIso,
       };
       this.resourceSyncLogs.unshift(logItem);
-      this.saveToStorage();
+      if (!skipSave) this.saveToStorage();
       return { success: false, status: 'invalid', message: 'Tên tài nguyên không được để trống.', log_id: logId };
     }
 
@@ -2453,7 +2454,7 @@ export class MockDatabaseStore {
         processed_at: nowIso,
       };
       this.resourceSyncLogs.unshift(logItem);
-      this.saveToStorage();
+      if (!skipSave) this.saveToStorage();
       return { success: false, status: 'invalid', message: 'Email giáo viên không hợp lệ.', log_id: logId };
     }
 
@@ -2519,7 +2520,7 @@ export class MockDatabaseStore {
         processed_at: nowIso,
       };
       this.resourceSyncLogs.unshift(logItem);
-      this.saveToStorage();
+      if (!skipSave) this.saveToStorage();
       return {
         success: true,
         status: 'duplicate',
@@ -2570,7 +2571,7 @@ export class MockDatabaseStore {
       this.profiles.push(teacher);
       this.userPasswords[teacher.id] = 'giaovien123';
       this.userPasswords[cleanEmail] = 'giaovien123';
-      this.saveToStorage();
+      if (!skipSave) this.saveToStorage();
 
       this.logActivity(
         'system',
@@ -2797,7 +2798,7 @@ export class MockDatabaseStore {
     // Update last sync time
     this.googleFormConfig.last_synced_at = nowIso;
 
-    this.saveToStorage();
+    if (!skipSave) this.saveToStorage();
 
     return {
       success: true,
@@ -2805,6 +2806,38 @@ export class MockDatabaseStore {
       message: `Đồng bộ thành công tài nguyên "${cleanTitle}" vào hệ thống ở trạng thái Chờ duyệt.`,
       resource_id: newResource.id,
       log_id: logId,
+    };
+  }
+
+  /**
+   * Batch synchronize Google Form submissions with a single storage save
+   */
+  public syncGoogleFormSubmissionsBatch(
+    payloads: GoogleFormSubmissionPayload[],
+    syncSecret?: string
+  ): {
+    total: number;
+    syncedCount: number;
+    duplicateCount: number;
+    invalidCount: number;
+  } {
+    let syncedCount = 0;
+    let duplicateCount = 0;
+    let invalidCount = 0;
+
+    for (const p of payloads) {
+      const res = this.syncGoogleFormSubmission(p, syncSecret, true);
+      if (res.status === 'synced') syncedCount++;
+      else if (res.status === 'duplicate') duplicateCount++;
+      else invalidCount++;
+    }
+
+    this.saveToStorage();
+    return {
+      total: payloads.length,
+      syncedCount,
+      duplicateCount,
+      invalidCount,
     };
   }
 
@@ -3570,6 +3603,22 @@ export class MockDatabaseStore {
       this.resources[idx] = { ...this.resources[idx], ...res };
     } else {
       this.resources.unshift(res);
+    }
+    this.saveToStorage();
+  }
+
+  /**
+   * Batch sync resources directly from Supabase Cloud with single storage save
+   */
+  public syncResourcesFromLiveBatch(resources: Resource[]): void {
+    if (!resources || resources.length === 0) return;
+    for (const res of resources) {
+      const idx = this.resources.findIndex((r) => r.id === res.id);
+      if (idx >= 0) {
+        this.resources[idx] = { ...this.resources[idx], ...res };
+      } else {
+        this.resources.unshift(res);
+      }
     }
     this.saveToStorage();
   }
